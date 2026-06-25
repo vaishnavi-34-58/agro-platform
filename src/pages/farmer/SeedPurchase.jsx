@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api/axios';
-import { ShoppingCart, X, CheckCircle, Search, Tag } from 'lucide-react';
+import { ShoppingCart, X, CheckCircle, Search, Tag, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const GRAIN_PHOTOS = {
@@ -25,6 +25,12 @@ export default function SeedPurchase() {
   const [form, setForm] = useState({ quantity_kg: '', payment_method: 'upi', upi_id: '', transaction_id: '' });
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState('browse');
+  
+  // Filter states
+  const [showFilters, setShowFilters] = useState(false);
+  const [maxPriceFilter, setMaxPriceFilter] = useState(10000);
+  const [selectedCrops, setSelectedCrops] = useState([]);
+  const [inStockOnly, setInStockOnly] = useState(false);
 
   const { data: seeds = [], isLoading: seedsLoading } = useQuery({
     queryKey: ['farmer-seeds'],
@@ -60,7 +66,20 @@ export default function SeedPurchase() {
     finally { setSaving(false); }
   };
 
-  const filtered = seeds.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.variety?.toLowerCase().includes(search.toLowerCase()));
+  // Derive filter data
+  const maxPrice = seeds.length > 0 ? Math.ceil(Math.max(...seeds.map(s => s.price_per_kg))) : 1000;
+  const cropTypes = [...new Set(seeds.map(s => s.name?.split(' ')[1] || s.name?.split(' ')[0] || 'default'))].filter(c => c !== 'default');
+
+  // Filter logic
+  const filtered = seeds.filter(s => {
+    const cropName = s.name?.split(' ')[1] || s.name?.split(' ')[0] || 'default';
+    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) || s.variety?.toLowerCase().includes(search.toLowerCase());
+    const matchesCrop = selectedCrops.length === 0 || selectedCrops.includes(cropName);
+    const matchesPrice = s.price_per_kg <= (maxPriceFilter === 10000 ? maxPrice : maxPriceFilter);
+    const matchesStock = !inStockOnly || s.stock_kg > 0;
+    return matchesSearch && matchesCrop && matchesPrice && matchesStock;
+  });
+
   const total = form.quantity_kg && selected ? (parseFloat(form.quantity_kg) * selected.price_per_kg).toFixed(2) : '0.00';
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-10 h-10 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" /></div>;
@@ -77,52 +96,134 @@ export default function SeedPurchase() {
       </div>
 
       {tab === 'browse' && (
-        <>
-          <div className="relative mb-6">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('search_seeds_placeholder')} className="input-field pl-10" />
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Mobile Filter Toggle */}
+          <div className="lg:hidden flex items-center justify-between mb-2">
+            <button onClick={() => setShowFilters(!showFilters)} className="btn-ghost flex items-center gap-2">
+              <Filter size={18} /> {t('filters') || 'Filters'}
+            </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {filtered.map(seed => {
-              const cropName = seed.name?.split(' ')[1] || seed.name?.split(' ')[0] || 'default';
-              const photoUrl = GRAIN_PHOTOS[cropName] || GRAIN_PHOTOS.default;
-              return (
-                <div key={seed.id} className="glass-card overflow-hidden hover-lift flex flex-col group">
-                  <div className="h-32 bg-gray-100 overflow-hidden relative">
-                    <img src={photoUrl} alt={seed.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                  </div>
-                  <div className="p-5 flex flex-col flex-1">
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <div>
-                        <h3 className="font-bold text-gray-800 leading-tight">{seed.name}</h3>
-                        <p className="text-xs text-gray-500 mt-0.5">{seed.variety}</p>
-                      </div>
-                      <span className="text-xs font-semibold text-primary-700 bg-primary-50 px-2 py-0.5 rounded-full shrink-0">{t('in_stock')}</span>
-                    </div>
-                    <p className="text-xs text-gray-500 mb-4 flex-1 leading-relaxed">{seed.description}</p>
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <p className="text-2xl font-bold text-agro-green">₹{seed.price_per_kg}<span className="text-sm text-gray-400 font-normal">/kg</span></p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-gray-500">{t('available')}</p>
-                        <p className="text-sm font-semibold text-gray-700">{seed.stock_kg.toLocaleString()} kg</p>
-                      </div>
-                    </div>
-                    <div className="w-full h-1.5 bg-gray-200 rounded-full mb-4 overflow-hidden">
-                      <div className={`h-full rounded-full ${seed.stock_kg > 1000 ? 'bg-green-500' : seed.stock_kg > 500 ? 'bg-yellow-400' : 'bg-red-400'}`}
-                        style={{ width: `${Math.min(100, (seed.stock_kg / 5000) * 100)}%` }} />
-                    </div>
-                    <button onClick={() => openBuy(seed)} disabled={seed.stock_kg <= 0}
-                      className="btn-primary flex items-center justify-center gap-2 mt-auto">
-                      <ShoppingCart size={16} />{seed.stock_kg > 0 ? t('purchase') : t('out_of_stock')}
-                    </button>
+
+          {/* Sidebar Filters */}
+          <div className={`lg:w-64 shrink-0 ${showFilters ? 'block' : 'hidden lg:block'}`}>
+            <div className="glass-card p-5 space-y-6 sticky top-20">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-gray-800">{t('filters') || 'Filters'}</h3>
+                <button onClick={() => { setMaxPriceFilter(10000); setSelectedCrops([]); setInStockOnly(false); }} className="text-xs text-primary-600 hover:underline">
+                  {t('clear_all') || 'Clear All'}
+                </button>
+              </div>
+
+              {/* Price Filter */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">{t('price_range') || 'Price Range'}</h4>
+                <div className="space-y-4">
+                  <input type="range" min="0" max={maxPrice} 
+                    value={maxPriceFilter === 10000 ? maxPrice : maxPriceFilter} 
+                    onChange={e => setMaxPriceFilter(Number(e.target.value))}
+                    className="w-full accent-primary-600" />
+                  <div className="flex justify-between text-xs text-gray-500 font-medium">
+                    <span>₹0</span>
+                    <span>₹{maxPriceFilter === 10000 ? maxPrice : maxPriceFilter}</span>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+
+              {/* Crop Type Filter */}
+              {cropTypes.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">{t('crop_type') || 'Crop Type'}</h4>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                    {cropTypes.map(crop => (
+                      <label key={crop} className="flex items-center gap-3 cursor-pointer group">
+                        <input type="checkbox" 
+                          checked={selectedCrops.includes(crop)}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedCrops([...selectedCrops, crop]);
+                            else setSelectedCrops(selectedCrops.filter(c => c !== crop));
+                          }}
+                          className="w-4 h-4 rounded text-primary-600 focus:ring-primary-500 border-gray-300 transition-colors cursor-pointer" />
+                        <span className="text-sm text-gray-600 group-hover:text-gray-800 transition-colors">{crop}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Availability Filter */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">{t('availability') || 'Availability'}</h4>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <input type="checkbox" 
+                    checked={inStockOnly}
+                    onChange={(e) => setInStockOnly(e.target.checked)}
+                    className="w-4 h-4 rounded text-primary-600 focus:ring-primary-500 border-gray-300 transition-colors cursor-pointer" />
+                  <span className="text-sm text-gray-600 group-hover:text-gray-800 transition-colors">{t('in_stock_only') || 'In Stock Only'}</span>
+                </label>
+              </div>
+            </div>
           </div>
-        </>
+
+          {/* Main Content (Grid & Search) */}
+          <div className="flex-1">
+            <div className="relative mb-6">
+              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('search_seeds_placeholder')} className="input-field pl-10" />
+            </div>
+            
+            {filtered.length === 0 ? (
+              <div className="glass-card p-10 text-center flex flex-col items-center">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4"><Search size={24} className="text-gray-400" /></div>
+                <h3 className="font-bold text-gray-800 mb-2">{t('no_seeds_found') || 'No seeds found'}</h3>
+                <p className="text-sm text-gray-500 max-w-sm mx-auto">Try adjusting your filters or search query to find what you're looking for.</p>
+                <button onClick={() => { setMaxPriceFilter(10000); setSelectedCrops([]); setInStockOnly(false); setSearch(''); }} className="btn-ghost mt-4">
+                  {t('clear_all') || 'Clear All Filters'}
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                {filtered.map(seed => {
+                  const cropName = seed.name?.split(' ')[1] || seed.name?.split(' ')[0] || 'default';
+                  const photoUrl = GRAIN_PHOTOS[cropName] || GRAIN_PHOTOS.default;
+                  return (
+                    <div key={seed.id} className="glass-card overflow-hidden hover-lift flex flex-col group">
+                      <div className="h-32 bg-gray-100 overflow-hidden relative">
+                        <img src={photoUrl} alt={seed.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                      </div>
+                      <div className="p-5 flex flex-col flex-1">
+                        <div className="flex items-start justify-between gap-2 mb-3">
+                          <div>
+                            <h3 className="font-bold text-gray-800 leading-tight">{seed.name}</h3>
+                            <p className="text-xs text-gray-500 mt-0.5">{seed.variety}</p>
+                          </div>
+                          <span className="text-xs font-semibold text-primary-700 bg-primary-50 px-2 py-0.5 rounded-full shrink-0">{t('in_stock')}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mb-4 flex-1 leading-relaxed">{seed.description}</p>
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <p className="text-2xl font-bold text-agro-green">₹{seed.price_per_kg}<span className="text-sm text-gray-400 font-normal">/kg</span></p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-500">{t('available')}</p>
+                            <p className="text-sm font-semibold text-gray-700">{seed.stock_kg.toLocaleString()} kg</p>
+                          </div>
+                        </div>
+                        <div className="w-full h-1.5 bg-gray-200 rounded-full mb-4 overflow-hidden">
+                          <div className={`h-full rounded-full ${seed.stock_kg > 1000 ? 'bg-green-500' : seed.stock_kg > 500 ? 'bg-yellow-400' : 'bg-red-400'}`}
+                            style={{ width: `${Math.min(100, (seed.stock_kg / 5000) * 100)}%` }} />
+                        </div>
+                        <button onClick={() => openBuy(seed)} disabled={seed.stock_kg <= 0}
+                          className="btn-primary flex items-center justify-center gap-2 mt-auto">
+                          <ShoppingCart size={16} />{seed.stock_kg > 0 ? t('purchase') : t('out_of_stock')}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {tab === 'history' && (
