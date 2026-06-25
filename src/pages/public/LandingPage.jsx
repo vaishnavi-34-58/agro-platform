@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import {
@@ -23,13 +24,16 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
-  const [stats, setStats] = useState({ farmers: 0, crops: 0, seeds: 0, warehouses: 0 });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLang, setShowLang] = useState(false);
 
-  useEffect(() => {
-    api.get('/public/stats').then(r => setStats(r.data)).catch(() => {});
-  }, []);
+  const { data: stats = { farmers: 0, crops: 0, seeds: 0, warehouses: 0 } } = useQuery({
+    queryKey: ['public-stats'],
+    queryFn: async () => {
+      const res = await api.get('/public/stats');
+      return res.data;
+    }
+  });
 
   const changeLang = (code) => {
     i18n.changeLanguage(code);
@@ -138,19 +142,20 @@ export default function LandingPage() {
       {/* ── HERO ── */}
       <section className="relative overflow-hidden text-white" style={{ minHeight: '92vh' }}>
 
-        {/* === Village background image === */}
+        {/* === Village background video === */}
         <div className="absolute inset-0">
-          <img
-            src="/village-hero.png"
-            alt="Village farmland"
+          <video
+            src="/videos/farm-bg.mp4"
+            autoPlay
+            loop
+            muted
+            playsInline
             className="w-full h-full object-cover object-center"
             style={{ filter: 'brightness(0.55) saturate(1.2)' }}
           />
         </div>
         {/* Dark gradient overlay for readability and fade into next section */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-t from-primary-800 via-transparent to-transparent opacity-100" style={{ top: '60%' }} />
-
         {/* === Content === */}
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col justify-center pt-12" style={{ minHeight: '92vh', paddingBottom: '140px' }}>
           <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -185,7 +190,7 @@ export default function LandingPage() {
             </div>
 
             {/* Right – glassmorphism stat cards */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 lg:ml-auto w-max">
               {[
                 { icon: Users, labelKey: 'active_farmers', value: stats.farmers, color: 'from-primary-400 to-green-600', glow: 'shadow-primary-500/30' },
                 { icon: Sprout, labelKey: 'active_fields', value: stats.crops, color: 'from-amber-400 to-orange-500', glow: 'shadow-amber-500/30' },

@@ -189,6 +189,7 @@ async function initializeDatabase() {
       id               BIGSERIAL PRIMARY KEY,
       farmer_id        BIGINT  NOT NULL REFERENCES users (id),
       grain_sale_id    BIGINT  REFERENCES grain_sales (id),
+      warehouse_slot_id BIGINT,
       booking_date     TEXT    NOT NULL,
       delivery_address TEXT    NOT NULL,
       grain_type       TEXT    NOT NULL,
@@ -264,7 +265,25 @@ async function initializeDatabase() {
       set_by          BIGINT  REFERENCES users (id),
       created_at      TIMESTAMPTZ DEFAULT now()
     );
+
+    CREATE TABLE IF NOT EXISTS warehouse_slots (
+      id                 BIGSERIAL PRIMARY KEY,
+      warehouse_id       BIGINT NOT NULL REFERENCES warehouses (id),
+      slot_date          TEXT NOT NULL,
+      start_time         TEXT NOT NULL,
+      end_time           TEXT NOT NULL,
+      total_capacity_kg  NUMERIC NOT NULL,
+      booked_capacity_kg NUMERIC DEFAULT 0,
+      status             TEXT DEFAULT 'active' CHECK (status IN ('active', 'cancelled')),
+      created_at         TIMESTAMPTZ DEFAULT now()
+    );
   `);
+
+  try {
+    await pool.query('ALTER TABLE booking_slots ADD COLUMN IF NOT EXISTS warehouse_slot_id BIGINT REFERENCES warehouse_slots(id);');
+  } catch (e) {
+    console.warn('Could not add warehouse_slot_id to booking_slots:', e.message);
+  }
 
   console.log('Database initialized successfully');
       

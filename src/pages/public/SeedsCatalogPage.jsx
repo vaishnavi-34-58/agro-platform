@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { Leaf, ShoppingBag, Sprout, ArrowRight, Menu, X, Globe } from 'lucide-react';
@@ -27,24 +28,23 @@ export default function SeedsCatalogPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
-  const [seeds, setSeeds] = useState([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLang, setShowLang] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  const { data: seeds = [], isLoading: loading } = useQuery({
+    queryKey: ['public-seeds'],
+    queryFn: async () => {
+      const res = await api.get('/public/seeds');
+      return res.data;
+    }
+  });
 
   const changeLang = (code) => {
     i18n.changeLanguage(code);
     localStorage.setItem('agro_lang', code);
     setShowLang(false);
   };
-
-  useEffect(() => {
-    api.get('/public/seeds')
-      .then(r => setSeeds(r.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
 
   const handleActionClick = (action) => {
     if (user) {

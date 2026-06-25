@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api/axios';
 import { Wheat, Plus, X, CheckCircle, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -9,10 +10,7 @@ const GRADES = ['A', 'B', 'C'];
 
 export default function GrainSales() {
   const { t } = useTranslation();
-  const [sales, setSales] = useState([]);
-  const [crops, setCrops] = useState([]);
-  const [rates, setRates] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -20,11 +18,21 @@ export default function GrainSales() {
     raw_material_kg: '', wastage_kg: '', good_material_kg: ''
   });
 
-  const load = async () => {
-    const [s, c, r] = await Promise.all([api.get('/farmer/grain-sales'), api.get('/farmer/crops'), api.get('/farmer/market-rates')]);
-    setSales(s.data); setCrops(c.data.filter(c => c.status === 'growing' || c.status === 'harvested')); setRates(r.data); setLoading(false);
-  };
-  useEffect(() => { load(); }, []);
+  const { data: sales = [], isLoading: salesLoading } = useQuery({
+    queryKey: ['farmer-grain-sales'],
+    queryFn: async () => { const res = await api.get('/farmer/grain-sales'); return res.data; }
+  });
+  const { data: allCrops = [], isLoading: cropsLoading } = useQuery({
+    queryKey: ['farmer-crops'],
+    queryFn: async () => { const res = await api.get('/farmer/crops'); return res.data; }
+  });
+  const { data: rates = [], isLoading: ratesLoading } = useQuery({
+    queryKey: ['farmer-market-rates'],
+    queryFn: async () => { const res = await api.get('/farmer/market-rates'); return res.data; }
+  });
+
+  const crops = allCrops.filter(c => c.status === 'growing' || c.status === 'harvested');
+  const loading = salesLoading || cropsLoading || ratesLoading;
 
   const getRate = (grain, grade) => rates.find(r => r.crop_type === grain && r.grade === grade)?.price_per_kg || 0;
   const estimated = form.good_material_kg ? (parseFloat(form.good_material_kg) * getRate(form.grain_type, form.grade)).toFixed(2) : '0.00';
@@ -42,7 +50,8 @@ export default function GrainSales() {
         good_material_kg: parseFloat(form.good_material_kg),
       });
       toast.success(`Grain sale submitted! Estimated: ₹${data.estimated_amount.toFixed(2)}`);
-      setShowModal(false); load();
+      setShowModal(false); 
+      queryClient.invalidateQueries({ queryKey: ['farmer-grain-sales'] });
     } catch (err) { toast.error(err.response?.data?.error || 'Submission failed'); }
     finally { setSaving(false); }
   };

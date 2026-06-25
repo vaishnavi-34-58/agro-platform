@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Package, Truck, Search, CheckCircle, Navigation } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -13,17 +14,16 @@ const MOCK_DISTRIBUTORS = [
 
 export default function Distributors() {
   const { t } = useTranslation();
-  const [warehouses, setWarehouses] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [selectedDist, setSelectedDist] = useState(null);
   const [dispatchData, setDispatchData] = useState({ warehouse_id: '', grain_type: '', quantity: '' });
 
-  useEffect(() => {
-    api.get('/admin/warehouses').then(r => {
-      setWarehouses(r.data);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
+  const { data: warehouses = [], isLoading: loading } = useQuery({
+    queryKey: ['admin-warehouses'],
+    queryFn: async () => {
+      const res = await api.get('/admin/warehouses');
+      return res.data;
+    }
+  });
 
   const handleDispatch = (e) => {
     e.preventDefault();

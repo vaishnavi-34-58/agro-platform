@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '../../services/api/axios';
 import { useAuth } from '../../context/AuthContext';
@@ -30,12 +31,14 @@ function StatCard({ icon, value, label, color, prefix }) {
 export default function FarmerDashboard() {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    api.get('/farmer/dashboard').then(r => { setData(r.data); setLoading(false); }).catch(() => setLoading(false));
-  }, []);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ['farmer-dashboard'],
+    queryFn: async () => {
+      const res = await api.get('/farmer/dashboard');
+      return res.data;
+    }
+  });
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">

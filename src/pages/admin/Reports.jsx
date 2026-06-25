@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import api from '../../services/api/axios';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Download, Calendar, ArrowRight } from 'lucide-react';
@@ -9,12 +10,14 @@ const COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'
 
 export default function Reports() {
   const { t } = useTranslation();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    api.get('/admin/dashboard').then(r => { setData(r.data); setLoading(false); }).catch(() => setLoading(false));
-  }, []);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ['admin-dashboard'], // Reuse dashboard cache since they fetch the same endpoint
+    queryFn: async () => {
+      const res = await api.get('/admin/dashboard');
+      return res.data;
+    }
+  });
 
   const downloadCSV = () => { toast.success(t('report_downloaded')); };
 

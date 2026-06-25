@@ -1,31 +1,28 @@
 import { useTranslation } from 'react-i18next';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import api from '../../services/api/axios';
 import { FileText, Search, Download, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AuditLogs() {
   const { t } = useTranslation();
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    // We don't have a specific API for audit logs yet, we will just fetch farmers and managers to simulate it.
-    Promise.all([api.get('/superadmin/managers'), api.get('/admin/farmers')])
-      .then(([m, f]) => {
-        // Create mock audit logs
-        const mockLogs = [];
-        m.data.forEach(manager => {
-          mockLogs.push({ id: `l1_${manager.id}`, user: manager.name, role: 'Manager', action: 'Login', entity: 'System', timestamp: manager.created_at + 86400, ip: '192.168.1.42' });
-        });
-        f.data.forEach(farmer => {
-          mockLogs.push({ id: `l2_${farmer.id}`, user: 'System', role: 'SuperAdmin', action: 'Farmer Registration Approved', entity: farmer.name, timestamp: farmer.created_at + 3600, ip: 'Server' });
-        });
-        setLogs(mockLogs.sort((a, b) => b.timestamp - a.timestamp));
-        setLoading(false);
-      }).catch(() => setLoading(false));
-  }, []);
+  const { data: logs = [], isLoading: loading } = useQuery({
+    queryKey: ['superadmin-audit-logs'],
+    queryFn: async () => {
+      const [m, f] = await Promise.all([api.get('/superadmin/managers'), api.get('/admin/farmers')]);
+      const mockLogs = [];
+      m.data.forEach(manager => {
+        mockLogs.push({ id: `l1_${manager.id}`, user: manager.name, role: 'Manager', action: 'Login', entity: 'System', timestamp: manager.created_at + 86400, ip: '192.168.1.42' });
+      });
+      f.data.forEach(farmer => {
+        mockLogs.push({ id: `l2_${farmer.id}`, user: 'System', role: 'SuperAdmin', action: 'Farmer Registration Approved', entity: farmer.name, timestamp: farmer.created_at + 3600, ip: 'Server' });
+      });
+      return mockLogs.sort((a, b) => b.timestamp - a.timestamp);
+    }
+  });
 
   const filtered = logs.filter(l => l.user.toLowerCase().includes(search.toLowerCase()) || l.action.toLowerCase().includes(search.toLowerCase()) || l.entity.toLowerCase().includes(search.toLowerCase()));
 

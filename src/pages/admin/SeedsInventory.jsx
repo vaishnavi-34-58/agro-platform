@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api/axios';
 import { useAuth } from '../../context/AuthContext';
 import { Package, Plus, X, CheckCircle, Edit, Search } from 'lucide-react';
@@ -8,15 +9,19 @@ import toast from 'react-hot-toast';
 export default function SeedsInventory() {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [seeds, setSeeds] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ id: null, name: '', variety: '', price_per_kg: '', stock_kg: '', description: '', is_active: 1 });
 
-  const load = () => api.get('/admin/seeds').then(r => { setSeeds(r.data); setLoading(false); }).catch(() => setLoading(false));
-  useEffect(() => { load(); }, []);
+  const { data: seeds = [], isLoading: loading } = useQuery({
+    queryKey: ['admin-seeds'],
+    queryFn: async () => {
+      const res = await api.get('/admin/seeds');
+      return res.data;
+    }
+  });
 
   const openAdd = () => { setForm({ id: null, name: '', variety: '', price_per_kg: '', stock_kg: '', description: '', is_active: 1 }); setShowModal(true); };
   const openEdit = (s) => { setForm({ ...s }); setShowModal(true); };
@@ -29,7 +34,8 @@ export default function SeedsInventory() {
       if (form.id) await api.patch(`/admin/seeds/${form.id}`, payload);
       else await api.post('/admin/seeds', payload);
       toast.success(form.id ? t('seed_updated') : t('seed_added'));
-      setShowModal(false); load();
+      setShowModal(false);
+      queryClient.invalidateQueries({ queryKey: ['admin-seeds'] });
     } catch { toast.error(t('save_failed')); }
     finally { setSaving(false); }
   };

@@ -331,6 +331,66 @@ router.post('/warehouses/:id/inventory', ...isAdmin, async (req, res) => {
   }
 });
 
+// GET /api/admin/warehouse-slots
+router.get('/warehouse-slots', ...isAdmin, async (req, res) => {
+  const { warehouse_id, date } = req.query;
+  try {
+    let sql = `
+      SELECT ws.*, w.name as warehouse_name 
+      FROM warehouse_slots ws
+      JOIN warehouses w ON w.id = ws.warehouse_id
+      WHERE 1=1
+    `;
+    const params = [];
+    if (warehouse_id) { params.push(warehouse_id); sql += ` AND ws.warehouse_id = $${params.length}`; }
+    if (date) { params.push(date); sql += ` AND ws.slot_date = $${params.length}`; }
+    sql += ' ORDER BY ws.slot_date DESC, ws.start_time ASC';
+    
+    const { rows } = await db.query(sql, params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/warehouse-slots
+router.post('/warehouse-slots', ...isAdmin, async (req, res) => {
+  const { warehouse_id, slot_date, start_time, end_time, total_capacity_kg } = req.body;
+  if (!warehouse_id || !slot_date || !start_time || !end_time || !total_capacity_kg) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  try {
+    const { rows } = await db.query(
+      `INSERT INTO warehouse_slots (warehouse_id, slot_date, start_time, end_time, total_capacity_kg)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [warehouse_id, slot_date, start_time, end_time, total_capacity_kg]
+    );
+    res.status(201).json({ id: rows[0].id, message: 'Slot created successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/admin/warehouse-slots/:id
+router.patch('/warehouse-slots/:id', ...isAdmin, async (req, res) => {
+  const { status, total_capacity_kg } = req.body;
+  try {
+    const { rows } = await db.query('SELECT * FROM warehouse_slots WHERE id = $1', [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Slot not found' });
+    
+    await db.query(
+      `UPDATE warehouse_slots
+       SET status = COALESCE($1, status),
+           total_capacity_kg = COALESCE($2, total_capacity_kg)
+       WHERE id = $3`,
+      [status, total_capacity_kg, req.params.id]
+    );
+    res.json({ message: 'Slot updated' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/admin/visits
 router.get('/visits', ...isAdmin, async (req, res) => {
   try {

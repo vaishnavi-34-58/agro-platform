@@ -162,6 +162,7 @@ CREATE TABLE IF NOT EXISTS booking_slots (
   id               BIGSERIAL PRIMARY KEY,
   farmer_id        BIGINT  NOT NULL REFERENCES users (id),
   grain_sale_id    BIGINT  REFERENCES grain_sales (id),
+  warehouse_slot_id BIGINT REFERENCES warehouse_slots (id),
   booking_date     TEXT    NOT NULL,
   delivery_address TEXT    NOT NULL,
   grain_type       TEXT    NOT NULL,
@@ -171,6 +172,19 @@ CREATE TABLE IF NOT EXISTS booking_slots (
                            CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled')),
   notes            TEXT,
   created_at       TIMESTAMPTZ DEFAULT now()
+);
+
+-- Time slots for warehouse booking
+CREATE TABLE IF NOT EXISTS warehouse_slots (
+  id                 BIGSERIAL PRIMARY KEY,
+  warehouse_id       BIGINT NOT NULL REFERENCES warehouses (id),
+  slot_date          TEXT NOT NULL,
+  start_time         TEXT NOT NULL,
+  end_time           TEXT NOT NULL,
+  total_capacity_kg  NUMERIC NOT NULL,
+  booked_capacity_kg NUMERIC DEFAULT 0,
+  status             TEXT DEFAULT 'active' CHECK (status IN ('active', 'cancelled')),
+  created_at         TIMESTAMPTZ DEFAULT now()
 );
 
 -- All financial transactions

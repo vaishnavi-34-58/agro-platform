@@ -1,18 +1,20 @@
 import { useTranslation } from 'react-i18next';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import api from '../../services/api/axios';
 import { Users, Search, MapPin, Eye } from 'lucide-react';
 
 export default function AllFarmers() {
   const { t } = useTranslation();
-  const [farmers, setFarmers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    // Reusing the admin API to get all farmers
-    api.get('/admin/farmers').then(r => { setFarmers(r.data); setLoading(false); }).catch(() => setLoading(false));
-  }, []);
+  const { data: farmers = [], isLoading: loading } = useQuery({
+    queryKey: ['admin-farmers'], // Reuse existing admin cache
+    queryFn: async () => {
+      const res = await api.get('/admin/farmers');
+      return res.data;
+    }
+  });
 
   const filtered = farmers.filter(f => f.name.toLowerCase().includes(search.toLowerCase()) || f.phone.includes(search));
   const activeCount = farmers.filter(f => f.status === 'active').length;

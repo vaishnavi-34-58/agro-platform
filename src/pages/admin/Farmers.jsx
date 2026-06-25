@@ -1,21 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api/axios';
 import { Users, Search, Eye, Check, X, ChevronRight, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function FarmersDirectory() {
   const { t } = useTranslation();
-  const [farmers, setFarmers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const load = () => api.get('/admin/farmers').then(r => { setFarmers(r.data); setLoading(false); }).catch(() => setLoading(false));
-  useEffect(() => { load(); }, []);
+  const { data: farmers = [], isLoading: loading } = useQuery({
+    queryKey: ['admin-farmers'],
+    queryFn: async () => {
+      const res = await api.get('/admin/farmers');
+      return res.data;
+    }
+  });
 
   const loadDetail = async (id) => {
     setDetailLoading(true);
@@ -27,7 +32,7 @@ export default function FarmersDirectory() {
     try {
       await api.patch(`/admin/farmers/${id}/approve`, { status });
       toast.success(t('farmer') + ' ' + status);
-      load();
+      queryClient.invalidateQueries({ queryKey: ['admin-farmers'] });
       if (selected === id) setDetail(d => ({ ...d, farmer: { ...d.farmer, status } }));
     } catch { toast.error(t('action_failed')); }
   };

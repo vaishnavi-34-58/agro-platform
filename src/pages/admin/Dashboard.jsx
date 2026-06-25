@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api/axios';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Users, Sprout, IndianRupee, Warehouse, Clock, TrendingUp, AlertCircle } from 'lucide-react';
@@ -22,20 +22,21 @@ function StatCard({ icon, value, label, color, sub }) {
 export default function AdminDashboard() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const loadData = () => {
-    api.get('/admin/dashboard').then(r => { setData(r.data); setLoading(false); }).catch(() => setLoading(false));
-  };
-  
-  useEffect(() => { loadData(); }, []);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ['admin-dashboard'],
+    queryFn: async () => {
+      const res = await api.get('/admin/dashboard');
+      return res.data;
+    }
+  });
 
   const handlePayFarmer = async (txId) => {
     try {
       await api.patch(`/admin/transactions/${txId}/pay`);
       toast.success('Payment processed successfully');
-      loadData();
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
     } catch (err) {
       toast.error('Payment failed');
     }

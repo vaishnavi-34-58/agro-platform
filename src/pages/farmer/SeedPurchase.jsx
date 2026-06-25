@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api/axios';
 import { ShoppingCart, X, CheckCircle, Search, Tag } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -17,9 +18,7 @@ const GRAIN_PHOTOS = {
 
 export default function SeedPurchase() {
   const { t } = useTranslation();
-  const [seeds, setSeeds] = useState([]);
-  const [purchases, setPurchases] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState('');
@@ -27,11 +26,17 @@ export default function SeedPurchase() {
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState('browse');
 
-  const load = async () => {
-    const [s, p] = await Promise.all([api.get('/farmer/seeds'), api.get('/farmer/seed-purchases')]);
-    setSeeds(s.data); setPurchases(p.data); setLoading(false);
-  };
-  useEffect(() => { load(); }, []);
+  const { data: seeds = [], isLoading: seedsLoading } = useQuery({
+    queryKey: ['farmer-seeds'],
+    queryFn: async () => { const res = await api.get('/farmer/seeds'); return res.data; }
+  });
+  
+  const { data: purchases = [], isLoading: purchasesLoading } = useQuery({
+    queryKey: ['farmer-seed-purchases'],
+    queryFn: async () => { const res = await api.get('/farmer/seed-purchases'); return res.data; }
+  });
+
+  const loading = seedsLoading || purchasesLoading;
 
   const openBuy = (seed) => { setSelected(seed); setForm({ quantity_kg: '', payment_method: 'upi', upi_id: '', transaction_id: '' }); setShowModal(true); };
 
@@ -49,7 +54,8 @@ export default function SeedPurchase() {
       });
       toast.success(`Purchase successful! Invoice: ${data.invoice_number} | Amount: ₹${data.total_amount.toFixed(2)}`);
       setShowModal(false);
-      load();
+      queryClient.invalidateQueries({ queryKey: ['farmer-seeds'] });
+      queryClient.invalidateQueries({ queryKey: ['farmer-seed-purchases'] });
     } catch (err) { toast.error(err.response?.data?.error || 'Purchase failed'); }
     finally { setSaving(false); }
   };

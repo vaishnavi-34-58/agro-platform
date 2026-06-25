@@ -281,28 +281,53 @@ router.get('/warehouses', ...isFarmer, async (req, res) => {
   }
 });
 
+// GET /api/farmer/warehouse-slots
+router.get('/warehouse-slots', ...isFarmer, async (req, res) => {
+  const { warehouse_id, date } = req.query;
+  if (!warehouse_id || !date) return res.status(400).json({ error: 'warehouse_id and date are required' });
+  try {
+    const { rows } = await db.query(
+      `SELECT * FROM warehouse_slots 
+       WHERE warehouse_id = $1 AND slot_date = $2 AND status = 'active'
+       ORDER BY start_time ASC`,
+      [warehouse_id, date]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/farmer/booking-slot
 router.post('/booking-slot', ...isFarmer, async (req, res) => {
-  const { grain_sale_id, booking_date, delivery_address, grain_type, warehouse_id, quantity_kg } = req.body;
+  const { grain_sale_id, booking_date, delivery_address, grain_type, warehouse_id, quantity_kg, warehouse_slot_id } = req.body;
   try {
-    const { rows: whRows } = await db.query(
-      'SELECT * FROM warehouses WHERE id = $1 AND is_active = TRUE', [warehouse_id]
-    );
-    const wh = whRows[0];
-    if (!wh) return res.status(404).json({ error: 'Warehouse not found' });
+    if (!warehouse_slot_id) return res.status(400).json({ error: 'Please select a specific time slot.' });
 
-    const available = parseFloat(wh.total_capacity_kg) - parseFloat(wh.current_load_kg);
+    const { rows: slotRows } = await db.query(
+      'SELECT * FROM warehouse_slots WHERE id = $1 AND status = \'active\'', [warehouse_slot_id]
+    );
+    const slot = slotRows[0];
+    if (!slot) return res.status(404).json({ error: 'Selected slot not found or inactive' });
+
+    const available = parseFloat(slot.total_capacity_kg) - parseFloat(slot.booked_capacity_kg);
     if (quantity_kg > available) {
-      return res.status(400).json({ error: `Insufficient capacity. Available: ${available.toFixed(0)} kg` });
+      return res.status(400).json({ error: `Insufficient capacity in this slot. Available: ${available.toFixed(0)} kg` });
     }
 
     const { rows } = await db.query(
       `INSERT INTO booking_slots
-         (farmer_id, grain_sale_id, booking_date, delivery_address, grain_type, warehouse_id, quantity_kg)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-      [req.user.id, grain_sale_id, booking_date, delivery_address, grain_type, warehouse_id, quantity_kg]
+         (farmer_id, grain_sale_id, warehouse_slot_id, booking_date, delivery_address, grain_type, warehouse_id, quantity_kg)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [req.user.id, grain_sale_id, warehouse_slot_id, slot.slot_date, delivery_address, grain_type, warehouse_id, quantity_kg]
     );
     const id = rows[0].id;
+
+    // Increment booked_capacity_kg
+    await db.query(
+      'UPDATE warehouse_slots SET booked_capacity_kg = booked_capacity_kg + $1 WHERE id = $2',
+      [quantity_kg, warehouse_slot_id]
+    );
 
     // Notify admins
     const { rows: managers } = await db.query(
@@ -312,7 +337,7 @@ router.post('/booking-slot', ...isFarmer, async (req, res) => {
       await db.query(
         `INSERT INTO notifications (user_id, title, message, type, reference_type, reference_id)
          VALUES ($1, 'New Delivery Slot Booking', $2, 'info', 'booking_slot', $3)`,
-        [m.id, `${req.user.name} booked a slot for ${quantity_kg}kg of ${grain_type} on ${booking_date}.`, id]
+        [m.id, `${req.user.name} booked a slot for ${quantity_kg}kg of ${grain_type} on ${slot.slot_date} at ${slot.start_time}.`, id]
       );
     }
     res.status(201).json({ id, message: 'Booking slot created. Awaiting confirmation.' });

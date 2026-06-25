@@ -1,18 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import api from '../../services/api/axios';
 import { History, Download, ArrowUpCircle, ArrowDownCircle, Search } from 'lucide-react';
 
 export default function TransactionHistory() {
   const { t } = useTranslation();
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    api.get('/farmer/transactions').then(r => { setTransactions(r.data); setLoading(false); }).catch(() => setLoading(false));
-  }, []);
+  const { data: transactions = [], isLoading: loading } = useQuery({
+    queryKey: ['farmer-transactions'],
+    queryFn: async () => {
+      const res = await api.get('/farmer/transactions');
+      return res.data;
+    }
+  });
 
   const filtered = transactions.filter(t => {
     const matchFilter = filter === 'all' || t.direction === filter;

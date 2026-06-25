@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api/axios';
 import {
   MapPin, Search, CheckCircle, Navigation, Upload, Camera,
@@ -28,8 +29,7 @@ function DaysChip({ dateStr }) {
 
 export default function FarmVisits() {
   const { t } = useTranslation();
-  const [visits, setVisits] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [selectedPhoto, setSelectedPhoto] = useState({});
@@ -43,22 +43,27 @@ export default function FarmVisits() {
   const [addForm, setAddForm] = useState({ crop_id: '', farmer_id: '', visit_month: '', scheduled_date: '' });
   const [adding, setAdding] = useState(false);
 
-  const load = () =>
-    api.get('/admin/visits')
-      .then(r => { setVisits(r.data); setLoading(false); })
-      .catch(() => setLoading(false));
-
-  useEffect(() => { load(); }, []);
+  const { data: visits = [], isLoading: loading } = useQuery({
+    queryKey: ['admin-visits'],
+    queryFn: async () => {
+      const res = await api.get('/admin/visits');
+      return res.data;
+    }
+  });
 
   const handleAction = async (id, status) => {
     setCompletingId(id);
     try {
       const payload = { status, actual_date: new Date().toISOString().split('T')[0] };
-      if (selectedPhoto[id]) payload.report = selectedPhoto[id]; // store base64 directly
+      // Upload photo as a real file if one was selected
+      if (selectedPhoto[id]) {
+        const uploadRes = await api.post('/upload', { image: selectedPhoto[id] });
+        payload.report = uploadRes.data.url; // store the file URL, not base64
+      }
       await api.patch(`/admin/visits/${id}`, payload);
       toast.success('Visit marked as ' + status);
       setSelectedPhoto(prev => { const n = { ...prev }; delete n[id]; return n; });
-      load();
+      queryClient.invalidateQueries({ queryKey: ['admin-visits'] });
     } catch {
       toast.error(t('action_failed'));
     } finally {
@@ -71,7 +76,7 @@ export default function FarmVisits() {
     try {
       await api.patch(`/admin/visits/${id}`, { scheduled_date: visitDates[id] });
       toast.success('Visit date updated!');
-      load();
+      queryClient.invalidateQueries({ queryKey: ['admin-visits'] });
     } catch {
       toast.error('Failed to update date');
     }
@@ -96,7 +101,7 @@ export default function FarmVisits() {
       await api.post('/admin/visits', addForm);
       toast.success('Visit scheduled successfully');
       setShowAddModal(false);
-      load();
+      queryClient.invalidateQueries({ queryKey: ['admin-visits'] });
     } catch {
       toast.error('Failed to schedule visit');
     } finally {
@@ -361,9 +366,9 @@ export default function FarmVisits() {
                       <Calendar size={11} /> Visited on {new Date(v.actual_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </p>
                   )}
-                  {v.report && v.report.startsWith('data:image') && (
+                  {v.report && (
                     <img
-                      src={v.report}
+                      src={v.report.startsWith('data:image') ? v.report : v.report}
                       alt="Farm visit photo"
                       className="w-full h-32 object-cover rounded-xl shadow-sm border border-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
                       onClick={() => setPreviewPhoto(v.report)}

@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { Leaf, TrendingUp, BarChart3, ArrowRight, ChevronRight, Menu, X, Globe } from 'lucide-react';
@@ -18,24 +19,23 @@ export default function MarketRatesPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t, i18n } = useTranslation();
-  const [marketRates, setMarketRates] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLang, setShowLang] = useState(false);
-  const [loading, setLoading] = useState(true);
+
+  const { data: marketRates = [], isLoading: loading } = useQuery({
+    queryKey: ['public-market-rates'],
+    queryFn: async () => {
+      const res = await api.get('/public/market-rates');
+      return res.data;
+    }
+  });
 
   const changeLang = (code) => {
     i18n.changeLanguage(code);
     localStorage.setItem('agro_lang', code);
     setShowLang(false);
   };
-
-  useEffect(() => {
-    api.get('/public/market-rates')
-      .then(r => setMarketRates(r.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
 
   const handleActionClick = (action) => {
     if (user) {

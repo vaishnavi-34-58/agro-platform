@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api/axios';
 import { TrendingUp, Plus, X, CheckCircle, Edit, Search } from 'lucide-react';
@@ -11,15 +12,19 @@ const GRADES = ['A', 'B', 'C'];
 export default function MarketRates() {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [rates, setRates] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ id: null, crop_type: 'Rice', grade: 'A', price_per_kg: '' });
 
-  const load = () => api.get('/admin/market-rates').then(r => { setRates(r.data); setLoading(false); }).catch(() => setLoading(false));
-  useEffect(() => { load(); }, []);
+  const { data: rates = [], isLoading: loading } = useQuery({
+    queryKey: ['admin-market-rates'],
+    queryFn: async () => {
+      const res = await api.get('/admin/market-rates');
+      return res.data;
+    }
+  });
 
   const openAdd = () => { setForm({ id: null, crop_type: 'Rice', grade: 'A', price_per_kg: '' }); setShowModal(true); };
   const openEdit = (r) => { setForm({ ...r }); setShowModal(true); };
@@ -32,7 +37,8 @@ export default function MarketRates() {
       if (form.id) await api.patch(`/admin/market-rates/${form.id}`, payload);
       else await api.post('/admin/market-rates', payload);
       toast.success(form.id ? t('rate_updated') : t('rate_added'));
-      setShowModal(false); load();
+      setShowModal(false); 
+      queryClient.invalidateQueries({ queryKey: ['admin-market-rates'] });
     } catch { toast.error(t('save_failed')); }
     finally { setSaving(false); }
   };

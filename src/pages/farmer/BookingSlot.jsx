@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api/axios';
 import { Calendar, Plus, X, CheckCircle, Warehouse, AlertTriangle, Eye, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -8,36 +9,48 @@ const GRAIN_TYPES = ['Rice', 'Wheat', 'Maize', 'Cotton', 'Soybean', 'Groundnut',
 
 export default function BookingSlot() {
   const { t } = useTranslation();
-  const [slots, setSlots] = useState([]);
-  const [warehouses, setWarehouses] = useState([]);
-  const [grainSales, setGrainSales] = useState([]);
+  const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
     grain_sale_id: '', booking_date: '', delivery_address: '',
-    grain_type: 'Rice', warehouse_id: '', quantity_kg: ''
+    grain_type: 'Rice', warehouse_id: '', quantity_kg: '', warehouse_slot_id: ''
   });
 
-  const load = async () => {
-    const [sl, wh, gs] = await Promise.all([
-      api.get('/farmer/booking-slots'), api.get('/farmer/warehouses'),
-      api.get('/farmer/grain-sales')
-    ]);
-    setSlots(sl.data); setWarehouses(wh.data);
-    setGrainSales(gs.data.filter(g => g.status === 'approved'));
-    setLoading(false);
-  };
-  useEffect(() => { load(); }, []);
+  const { data: slots = [], isLoading: slotsLoading } = useQuery({
+    queryKey: ['farmer-booking-slots'],
+    queryFn: async () => { const res = await api.get('/farmer/booking-slots'); return res.data; }
+  });
+  const { data: warehouses = [], isLoading: whLoading } = useQuery({
+    queryKey: ['farmer-warehouses'],
+    queryFn: async () => { const res = await api.get('/farmer/warehouses'); return res.data; }
+  });
+  const { data: allGrainSales = [], isLoading: gsLoading } = useQuery({
+    queryKey: ['farmer-grain-sales'],
+    queryFn: async () => { const res = await api.get('/farmer/grain-sales'); return res.data; }
+  });
 
-  const selectedWh = warehouses.find(w => w.id === parseInt(form.warehouse_id));
-  const available_kg = selectedWh ? selectedWh.available_kg : null;
+  const grainSales = allGrainSales.filter(g => g.status === 'approved');
+  const loading = slotsLoading || whLoading || gsLoading;
+
+  const { data: availableSlots = [], isLoading: slotsLoadingStatus } = useQuery({
+    queryKey: ['farmer-warehouse-slots', form.warehouse_id, form.booking_date],
+    queryFn: async () => {
+      const res = await api.get(`/farmer/warehouse-slots?warehouse_id=${form.warehouse_id}&date=${form.booking_date}`);
+      return res.data;
+    },
+    enabled: !!form.warehouse_id && !!form.booking_date
+  });
+
+  const selectedSlotData = availableSlots.find(s => s.id === parseInt(form.warehouse_slot_id));
+  const available_kg = selectedSlotData ? (selectedSlotData.total_capacity_kg - selectedSlotData.booked_capacity_kg) : null;
   const capacityWarning = form.quantity_kg && available_kg !== null && parseFloat(form.quantity_kg) > available_kg;
 
   const handleBook = async (e) => {
     e.preventDefault();
-    if (capacityWarning) return toast.error(`Insufficient warehouse capacity! Available: ${available_kg.toFixed(0)} kg`);
+    if (!form.warehouse_slot_id) return toast.error('Please select a time slot');
+    if (capacityWarning) return toast.error(`Insufficient slot capacity! Available: ${available_kg.toFixed(0)} kg`);
     if (!form.booking_date || !form.delivery_address || !form.warehouse_id || !form.quantity_kg) return toast.error('Fill all required fields');
     setSaving(true);
     try {
@@ -48,9 +61,11 @@ export default function BookingSlot() {
         grain_type: form.grain_type,
         warehouse_id: parseInt(form.warehouse_id),
         quantity_kg: parseFloat(form.quantity_kg),
+        warehouse_slot_id: parseInt(form.warehouse_slot_id)
       });
       toast.success('Booking slot created! Awaiting manager confirmation.');
-      setShowModal(false); load();
+      setShowModal(false); 
+      queryClient.invalidateQueries({ queryKey: ['farmer-booking-slots'] });
     } catch (err) { toast.error(err.response?.data?.error || 'Booking failed'); }
     finally { setSaving(false); }
   };
@@ -144,7 +159,7 @@ export default function BookingSlot() {
                 </div>
                 <div>
                   <label className="label">{t('booking_date')} *</label>
-                  <input type="date" value={form.booking_date} onChange={e => setForm(f => ({ ...f, booking_date: e.target.value }))}
+                  <input type="date" value={form.booking_date} onChange={e => setForm(f => ({ ...f, booking_date: e.target.value, warehouse_slot_id: '' }))}
                     className="input-field" min={new Date().toISOString().split('T')[0]} required />
                 </div>
               </div>
@@ -157,21 +172,64 @@ export default function BookingSlot() {
               </div>
               <div>
                 <label className="label">Warehouse *</label>
-                <select value={form.warehouse_id} onChange={e => setForm(f => ({ ...f, warehouse_id: e.target.value }))} className="input-field" required>
+                <select value={form.warehouse_id} onChange={e => setForm(f => ({ ...f, warehouse_id: e.target.value, warehouse_slot_id: '' }))} className="input-field" required>
                   <option value="">Select warehouse</option>
                   {warehouses.map(w => <option key={w.id} value={w.id}>{w.name} (Available: {(w.available_kg / 1000).toFixed(0)}T)</option>)}
                 </select>
               </div>
-              <div>
-                <label className="label">Quantity (kg) *</label>
-                <input type="number" value={form.quantity_kg} onChange={e => setForm(f => ({ ...f, quantity_kg: e.target.value }))}
-                  className={`input-field ${capacityWarning ? 'input-error' : ''}`} placeholder="Quantity in kg" min="1" required />
-                {capacityWarning && (
-                  <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                    <AlertTriangle size={12} />Exceeds available capacity ({available_kg?.toFixed(0)} kg available)
-                  </p>
-                )}
-              </div>
+
+              {form.warehouse_id && form.booking_date && (
+                <div>
+                  <label className="label">Select Time Slot *</label>
+                  {slotsLoadingStatus ? (
+                    <div className="text-sm text-gray-500 animate-pulse">Loading slots...</div>
+                  ) : availableSlots.length === 0 ? (
+                    <div className="text-sm text-red-500">No time slots available for this date and warehouse.</div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      {availableSlots.map(slot => {
+                        const isFull = parseFloat(slot.booked_capacity_kg) >= parseFloat(slot.total_capacity_kg);
+                        const pct = (parseFloat(slot.booked_capacity_kg) / parseFloat(slot.total_capacity_kg)) * 100;
+                        const isFillingFast = pct > 75 && !isFull;
+                        const isSelected = form.warehouse_slot_id === slot.id.toString();
+                        
+                        return (
+                          <button
+                            key={slot.id}
+                            type="button"
+                            disabled={isFull}
+                            onClick={() => setForm(f => ({ ...f, warehouse_slot_id: slot.id.toString() }))}
+                            className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all
+                              ${isFull ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed' : 
+                                isSelected ? 'bg-primary-50 border-primary-500 ring-2 ring-primary-200' : 'bg-white border-gray-200 hover:border-primary-300'}`}
+                          >
+                            <div className="flex justify-between items-center w-full">
+                              <span className="font-semibold text-gray-800 text-sm">{slot.start_time} - {slot.end_time}</span>
+                              {isFull ? <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded">FULL</span> :
+                               isFillingFast ? <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded">FILLING FAST</span> :
+                               <span className="text-[10px] font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded">AVAILABLE</span>}
+                            </div>
+                            <span className="text-xs text-gray-500">{slot.total_capacity_kg - slot.booked_capacity_kg} kg available</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {form.warehouse_slot_id && (
+                <div>
+                  <label className="label">Quantity (kg) *</label>
+                  <input type="number" value={form.quantity_kg} onChange={e => setForm(f => ({ ...f, quantity_kg: e.target.value }))}
+                    className={`input-field ${capacityWarning ? 'input-error' : ''}`} placeholder="Quantity in kg" min="1" required />
+                  {capacityWarning && (
+                    <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                      <AlertTriangle size={12} />Exceeds available capacity ({available_kg?.toFixed(0)} kg available)
+                    </p>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="label">{t('delivery_address')} *</label>
                 <input value={form.delivery_address} onChange={e => setForm(f => ({ ...f, delivery_address: e.target.value }))}

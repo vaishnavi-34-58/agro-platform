@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api/axios';
 import { User, CreditCard, Save, AlertCircle, CheckCircle, Edit3, Sprout, FileText, UploadCloud, Link as LinkIcon } from 'lucide-react';
@@ -8,8 +9,8 @@ import toast from 'react-hot-toast';
 export default function FarmerProfile() {
   const { t } = useTranslation();
   const { user, refreshProfile } = useAuth();
+  const queryClient = useQueryClient();
   const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [editPersonal, setEditPersonal] = useState(false);
   const [editBank, setEditBank] = useState(false);
   const [editAgri, setEditAgri] = useState(false);
@@ -19,16 +20,23 @@ export default function FarmerProfile() {
   const [agriForm, setAgriForm] = useState({});
   const [docForm, setDocForm] = useState({});
 
-  const load = async () => {
-    const { data } = await api.get('/farmer/profile');
-    setProfile(data.profile);
-    setPersonalForm({ name: data.user?.name, email: data.user?.email, address: data.profile?.address, acres_of_land: data.profile?.acres_of_land, crop_address: data.profile?.crop_address });
-    setBankForm({ bank_name: data.profile?.bank_name || '', account_number: data.profile?.account_number || '', ifsc_code: data.profile?.ifsc_code || '', upi_id: data.profile?.upi_id || '' });
-    setAgriForm({ soil_type: data.profile?.soil_type || '', irrigation_type: data.profile?.irrigation_type || '', primary_crop: data.profile?.primary_crop || '', secondary_crop: data.profile?.secondary_crop || '' });
-    setDocForm({ aadhaar_card_url: data.profile?.aadhaar_card_url || '', bank_passbook_url: data.profile?.bank_passbook_url || '', land_ownership_url: data.profile?.land_ownership_url || '' });
-    setLoading(false);
-  };
-  useEffect(() => { load(); }, []);
+  const { data: rawData, isLoading: loading } = useQuery({
+    queryKey: ['farmer-profile'],
+    queryFn: async () => {
+      const res = await api.get('/farmer/profile');
+      return res.data;
+    }
+  });
+
+  useEffect(() => {
+    if (rawData) {
+      setProfile(rawData.profile);
+      setPersonalForm({ name: rawData.user?.name, email: rawData.user?.email, address: rawData.profile?.address, acres_of_land: rawData.profile?.acres_of_land, crop_address: rawData.profile?.crop_address });
+      setBankForm({ bank_name: rawData.profile?.bank_name || '', account_number: rawData.profile?.account_number || '', ifsc_code: rawData.profile?.ifsc_code || '', upi_id: rawData.profile?.upi_id || '' });
+      setAgriForm({ soil_type: rawData.profile?.soil_type || '', irrigation_type: rawData.profile?.irrigation_type || '', primary_crop: rawData.profile?.primary_crop || '', secondary_crop: rawData.profile?.secondary_crop || '' });
+      setDocForm({ aadhaar_card_url: rawData.profile?.aadhaar_card_url || '', bank_passbook_url: rawData.profile?.bank_passbook_url || '', land_ownership_url: rawData.profile?.land_ownership_url || '' });
+    }
+  }, [rawData]);
 
   const savePersonal = async () => {
     setSaving(true);
@@ -36,7 +44,8 @@ export default function FarmerProfile() {
       await api.patch('/farmer/profile', personalForm);
       toast.success('Profile updated!');
       setEditPersonal(false);
-      load(); refreshProfile();
+      queryClient.invalidateQueries({ queryKey: ['farmer-profile'] }); 
+      refreshProfile();
     } catch { toast.error('Update failed'); }
     finally { setSaving(false); }
   };
@@ -47,7 +56,8 @@ export default function FarmerProfile() {
       await api.patch('/farmer/profile', agriForm);
       toast.success('Agricultural details updated!');
       setEditAgri(false);
-      load(); refreshProfile();
+      queryClient.invalidateQueries({ queryKey: ['farmer-profile'] });
+      refreshProfile();
     } catch { toast.error('Update failed'); }
     finally { setSaving(false); }
   };
@@ -66,7 +76,8 @@ export default function FarmerProfile() {
       await api.patch('/farmer/profile', { [field]: mockUrl });
       
       toast.success('File uploaded successfully', { id: toastId });
-      load(); refreshProfile();
+      queryClient.invalidateQueries({ queryKey: ['farmer-profile'] });
+      refreshProfile();
     } catch {
       toast.error('Upload failed', { id: toastId });
     }
@@ -78,7 +89,8 @@ export default function FarmerProfile() {
     try {
       await api.post('/farmer/bank-change-request', bankForm);
       toast.success('Bank change request submitted. Admin will review it.');
-      setEditBank(false); load();
+      setEditBank(false); 
+      queryClient.invalidateQueries({ queryKey: ['farmer-profile'] });
     } catch { toast.error('Request failed'); }
     finally { setSaving(false); }
   };

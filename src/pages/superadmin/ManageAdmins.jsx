@@ -1,20 +1,25 @@
 import { useTranslation } from 'react-i18next';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api/axios';
 import { Shield, Plus, X, CheckCircle, Search, Edit2, Ban, Play } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function ManageAdmins() {
   const { t } = useTranslation();
-  const [managers, setManagers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ id: null, name: '', phone: '', email: '', password: '', status: 'active' });
 
-  const load = () => api.get('/admin/managers').then(r => { setManagers(r.data); setLoading(false); }).catch(() => setLoading(false));
-  useEffect(() => { load(); }, []);
+  const { data: managers = [], isLoading: loading } = useQuery({
+    queryKey: ['superadmin-managers'],
+    queryFn: async () => {
+      const res = await api.get('/admin/managers');
+      return res.data;
+    }
+  });
 
   const openAdd = () => { setForm({ id: null, name: '', phone: '', email: '', password: '', status: 'active' }); setShowModal(true); };
   const openEdit = (m) => { setForm({ ...m, password: '' }); setShowModal(true); };
@@ -26,7 +31,8 @@ export default function ManageAdmins() {
       if (form.id) await api.patch(`/admin/managers/${form.id}`, form);
       else await api.post('/admin/managers', form);
       toast.success(form.id ? 'Manager updated' : 'Manager added');
-      setShowModal(false); load();
+      setShowModal(false);
+      queryClient.invalidateQueries({ queryKey: ['superadmin-managers'] });
     } catch (err) { toast.error(err.response?.data?.error || 'Save failed'); }
     finally { setSaving(false); }
   };
@@ -36,7 +42,7 @@ export default function ManageAdmins() {
     try {
       await api.patch(`/admin/managers/${m.id}`, { status: newStatus });
       toast.success(`Manager ${newStatus}`);
-      load();
+      queryClient.invalidateQueries({ queryKey: ['superadmin-managers'] });
     } catch (err) {
       toast.error('Failed to change status');
     }

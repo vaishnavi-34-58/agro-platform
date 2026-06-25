@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import api from '../../services/api/axios';
 import { Users, UserPlus, Shield, Activity, Crown, Search, Edit, X, CheckCircle, MapPin, Map, User } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -17,12 +17,14 @@ function StatCard({ icon, value, label, color }) {
 
 export default function SuperAdminDashboard() {
   const { t } = useTranslation();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    api.get('/superadmin/dashboard').then(r => { setData(r.data); setLoading(false); }).catch(() => setLoading(false));
-  }, []);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ['superadmin-dashboard'],
+    queryFn: async () => {
+      const res = await api.get('/superadmin/dashboard');
+      return res.data;
+    }
+  });
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-10 h-10 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>;
 

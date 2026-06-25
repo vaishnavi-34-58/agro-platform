@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api/axios';
 import { Wheat, Search, Eye, CheckCircle, X, DollarSign, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function GrainSalesAdmin() {
   const { t } = useTranslation();
-  const [sales, setSales] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
@@ -15,8 +15,13 @@ export default function GrainSalesAdmin() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ final_amount: '', status: '' });
 
-  const load = () => api.get('/admin/grain-sales').then(r => { setSales(r.data); setLoading(false); }).catch(() => setLoading(false));
-  useEffect(() => { load(); }, []);
+  const { data: sales = [], isLoading: loading } = useQuery({
+    queryKey: ['admin-grain-sales'],
+    queryFn: async () => {
+      const res = await api.get('/admin/grain-sales');
+      return res.data;
+    }
+  });
 
   const openApprove = (s) => { setSelected(s); setForm({ final_amount: s.total_amount || 0, status: 'approved' }); setShowModal(true); };
 
@@ -26,7 +31,8 @@ export default function GrainSalesAdmin() {
     try {
       await api.patch(`/admin/grain-sales/${selected.id}`, { status: form.status, final_amount: form.status === 'approved' ? parseFloat(form.final_amount) : 0 });
       toast.success(t('sale') + ' ' + form.status);
-      setShowModal(false); load();
+      setShowModal(false); 
+      queryClient.invalidateQueries({ queryKey: ['admin-grain-sales'] });
     } catch { toast.error(t('action_failed')); }
     finally { setSaving(false); }
   };

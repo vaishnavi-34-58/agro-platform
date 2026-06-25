@@ -1,25 +1,30 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api/axios';
 import { Calendar, Search, CheckCircle, X, MapPin, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function BookingSlots() {
   const { t } = useTranslation();
-  const [slots, setSlots] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [selectedSlot, setSelectedSlot] = useState(null);
 
-  const load = () => api.get('/admin/booking-slots').then(r => { setSlots(r.data); setLoading(false); }).catch(() => setLoading(false));
-  useEffect(() => { load(); }, []);
+  const { data: slots = [], isLoading: loading } = useQuery({
+    queryKey: ['admin-booking-slots'],
+    queryFn: async () => {
+      const res = await api.get('/admin/booking-slots');
+      return res.data;
+    }
+  });
 
   const handleAction = async (id, status) => {
     try {
       await api.patch(`/admin/booking-slots/${id}`, { status });
       toast.success(t('slot') + ' ' + status);
-      load();
+      queryClient.invalidateQueries({ queryKey: ['admin-booking-slots'] });
     } catch { toast.error(t('action_failed')); }
   };
 

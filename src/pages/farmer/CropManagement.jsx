@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api/axios';
 import { Sprout, Plus, X, CheckCircle, Clock, Leaf, Calendar, Tractor } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -39,22 +40,22 @@ function CropCycleTracker({ sowingDate }) {
 
 export default function CropManagement() {
   const { t } = useTranslation();
-  const [crops, setCrops] = useState([]);
-  const [visits, setVisits] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ crop_type: 'Rice', acres: '', sowing_date: new Date().toISOString().split('T')[0] });
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
-    try {
-      const [c, v] = await Promise.all([api.get('/farmer/crops'), api.get('/farmer/visits')]);
-      setCrops(c.data);
-      setVisits(v.data);
-    } finally { setLoading(false); }
-  };
+  const { data: crops = [], isLoading: cropsLoading } = useQuery({
+    queryKey: ['farmer-crops'],
+    queryFn: async () => { const res = await api.get('/farmer/crops'); return res.data; }
+  });
 
-  useEffect(() => { load(); }, []);
+  const { data: visits = [], isLoading: visitsLoading } = useQuery({
+    queryKey: ['farmer-visits'],
+    queryFn: async () => { const res = await api.get('/farmer/visits'); return res.data; }
+  });
+
+  const loading = cropsLoading || visitsLoading;
 
   const addCrop = async (e) => {
     e.preventDefault();
@@ -64,7 +65,7 @@ export default function CropManagement() {
       await api.post('/farmer/crops', { ...form, acres: parseFloat(form.acres) });
       toast.success(t('crop_registered_success'));
       setShowModal(false);
-      load();
+      queryClient.invalidateQueries({ queryKey: ['farmer-crops'] });
     } catch (err) { toast.error(err.response?.data?.error || 'Failed to register crop'); }
     finally { setSaving(false); }
   };
