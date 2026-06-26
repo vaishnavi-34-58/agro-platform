@@ -1,8 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../services/api/axios';
-import { Users, UserPlus, Shield, Activity, Crown, Search, Edit, X, CheckCircle, MapPin, Map, User } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { Users, Shield, Activity, Map, User } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 function StatCard({ icon, value, label, color }) {
@@ -21,7 +20,15 @@ export default function SuperAdminDashboard() {
   const { data, isLoading: loading } = useQuery({
     queryKey: ['superadmin-dashboard'],
     queryFn: async () => {
-      const res = await api.get('/superadmin/dashboard');
+      const res = await api.get('/admin/dashboard');
+      return res.data;
+    }
+  });
+
+  const { data: managers } = useQuery({
+    queryKey: ['managers-list'],
+    queryFn: async () => {
+      const res = await api.get('/admin/managers');
       return res.data;
     }
   });
@@ -35,6 +42,12 @@ export default function SuperAdminDashboard() {
     { day: 'Sun', logins: 230, registrations: 30 }
   ];
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
   return (
     <div className="animate-fade-in">
       <div className="flex justify-between items-end mb-8">
@@ -43,10 +56,10 @@ export default function SuperAdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-        <StatCard icon={<Users size={24} className="text-blue-400" />} value={data?.farmers || 0} label={t("total_farmers")} color="bg-blue-500/20" />
-        <StatCard icon={<Shield size={24} className="text-gold-400" />} value={data?.managers || 0} label={t("system_managers")} color="bg-gold-500/20" />
-        <StatCard icon={<Activity size={24} className="text-green-400" />} value={data?.totalVisits || 0} label={t("farm_visits_recorded")} color="bg-green-500/20" />
-        <StatCard icon={<Map size={24} className="text-purple-400" />} value={data?.warehouses || 0} label={t("active_warehouses")} color="bg-purple-500/20" />
+        <StatCard icon={<Users size={24} className="text-blue-400" />} value={data?.totalFarmers || data?.farmers || 0} label={t("total_farmers")} color="bg-blue-500/20" />
+        <StatCard icon={<Shield size={24} className="text-gold-400" />} value={managers?.length || data?.managers || 0} label={t("system_managers")} color="bg-gold-500/20" />
+        <StatCard icon={<Activity size={24} className="text-green-400" />} value={data?.visitorToday || data?.totalVisits || 0} label={t("farm_visits_recorded")} color="bg-green-500/20" />
+        <StatCard icon={<Map size={24} className="text-purple-400" />} value={data?.warehouses?.length || data?.warehouses || 0} label={t("active_warehouses")} color="bg-purple-500/20" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -69,18 +82,30 @@ export default function SuperAdminDashboard() {
         </div>
 
         <div className="glass-card p-6">
-          <h3 className="text-gray-800 font-bold mb-6 flex items-center gap-2"><Shield size={18} className="text-blue-500" />{t("recent_logins")}</h3>
+          <h3 className="text-gray-800 font-bold mb-6 flex items-center gap-2"><Shield size={18} className="text-blue-500" />{t("system_managers")}</h3>
           <div className="space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
-                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400"><User size={14} /></div>
-                <div className="flex-1"><p className="text-sm font-medium text-gray-800">{t("manager_user")} {i+1}</p><p className="text-[10px] text-gray-500">IP: 192.168.1.{10+i}</p></div>
-                <p className="text-xs text-gray-500">{i === 0 ? 'Just now' : `${i*2} {t("hours_ago")}`}</p>
-              </div>
-            ))}
+            {managers && managers.length > 0 ? (
+              managers.slice(0, 5).map((mgr) => (
+                <div key={mgr.id} className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
+                  <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 font-bold text-sm">
+                    {mgr.name ? mgr.name.charAt(0).toUpperCase() : 'M'}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-800">{mgr.name}</p>
+                    <p className="text-[10px] text-gray-500">{mgr.email || mgr.phone}</p>
+                  </div>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${mgr.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {mgr.status === 'active' ? 'Active' : mgr.status}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-4">{t("no_data") || 'No managers found'}</p>
+            )}
           </div>
         </div>
       </div>
     </div>
   );
 }
+

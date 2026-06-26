@@ -215,7 +215,7 @@ export default function LandingPage() {
       <section className="py-16 bg-gradient-to-br from-primary-800 to-green-900 text-white">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h2 className="text-3xl sm:text-4xl font-black mb-4">{t('start_journey')}</h2>
-          <p className="text-white/70 text-lg mb-8">{t('trusted_by')}</p>
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link to="/register"
               className="flex items-center justify-center gap-2 bg-amber-400 text-gray-900 px-8 py-4 rounded-2xl font-bold text-base hover:bg-amber-300 active:scale-95 transition-all shadow-lg">
