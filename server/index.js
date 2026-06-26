@@ -1,9 +1,9 @@
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 const { startScheduledJobs } = require('./utils/scheduledJobs');
 
 const app = express();
@@ -37,30 +37,22 @@ app.use('/api/upload', require('./routes/upload'));
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-// Serve built frontend in production
-if (process.env.NODE_ENV === 'production') {
-  const distPath = path.join(__dirname, '..', 'dist');
-  app.use(express.static(distPath));
-  // SPA fallback — serve index.html for any non-API route
-  app.get(/^(?!\/api).*/, (req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
-  });
-}
-
 // Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  console.log(`\n🌱 AgroSeq Server running on http://localhost:${PORT}`);
-  console.log(`📊 API: http://localhost:${PORT}/api/health`);
-  console.log('\n📋 Default Credentials:');
-  console.log('   Super Admin: phone=9999999999, password=Admin@123');
-  console.log('   Manager:     phone=8888888888, password=Manager@123\n');
-  // Start background scheduled jobs (farm visit reminders etc.)
-  startScheduledJobs();
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`\n🌱 AgroSeq Server running on http://localhost:${PORT}`);
+    console.log(`📊 API: http://localhost:${PORT}/api/health`);
+    console.log('\n📋 Default Credentials:');
+    console.log('   Super Admin: phone=9999999999, password=Admin@123');
+    console.log('   Manager:     phone=8888888888, password=Manager@123\n');
+    // Start background scheduled jobs (farm visit reminders etc.)
+    startScheduledJobs();
+  });
+}
 
 module.exports = app;
