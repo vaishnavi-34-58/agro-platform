@@ -1,3 +1,5 @@
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const { Pool } = require('pg');
