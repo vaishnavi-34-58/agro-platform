@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api/axios';
-import { ShoppingCart, X, CheckCircle, Search, Tag, Filter } from 'lucide-react';
+import { ShoppingCart, X, CheckCircle, Search, Tag, Filter, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const GRAIN_PHOTOS = {
@@ -49,6 +49,10 @@ export default function SeedPurchase() {
   const handlePurchase = async (e) => {
     e.preventDefault();
     if (!form.quantity_kg || parseFloat(form.quantity_kg) <= 0) return toast.error(t('enter_valid_quantity'));
+    if (form.payment_method === 'upi') {
+      if (!/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(form.upi_id)) return toast.error(t('invalid_upi_id') || 'Invalid UPI ID format');
+      if (!/^\d{12}$/.test(form.transaction_id)) return toast.error(t('invalid_transaction_id') || 'Transaction ID must be exactly 12 digits');
+    }
     setSaving(true);
     try {
       const { data } = await api.post('/farmer/seed-purchase', {
@@ -64,6 +68,13 @@ export default function SeedPurchase() {
       queryClient.invalidateQueries({ queryKey: ['farmer-seed-purchases'] });
     } catch (err) { toast.error(err.response?.data?.error || 'Purchase failed'); }
     finally { setSaving(false); }
+  };
+
+  const downloadInvoice = (p) => {
+    const content = `AGRIFLOW ERP INVOICE\n\nInvoice Number: ${p.invoice_number}\nDate: ${new Date(p.created_at).toLocaleString('en-IN')}\nSeed Name: ${p.seed_name} (${p.variety})\nQuantity: ${p.quantity_kg} kg\nPrice: ₹${p.price_per_kg}/kg\nTotal Amount: ₹${p.total_amount}\nStatus: ${p.payment_status}\n\nThank you for using AgriFlow!`;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `Invoice_${p.invoice_number}.txt`; a.click();
   };
 
   // Derive filter data
@@ -245,7 +256,11 @@ export default function SeedPurchase() {
                       <td className="font-bold text-gray-800">₹{p.total_amount.toLocaleString('en-IN')}</td>
                       <td className="text-xs">{p.upi_id || '-'}</td>
                       <td className="text-xs">{p.transaction_id || '-'}</td>
-                      <td><span className="badge-blue text-[10px]">{p.invoice_number}</span></td>
+                      <td>{p.invoice_number ? (
+                        <button onClick={() => downloadInvoice(p)} className="badge-blue text-[10px] flex items-center gap-1 hover:bg-blue-200 transition-colors">
+                          {p.invoice_number} <Download size={10} />
+                        </button>
+                      ) : '-'}</td>
                       <td>
                         <span className={`badge ${p.payment_status === 'paid' ? 'badge-green' : p.payment_status === 'failed' ? 'badge-red' : 'badge-yellow'}`}>
                           {p.payment_status === 'pending' ? 'Pay at Warehouse' : p.payment_status}
@@ -317,8 +332,8 @@ export default function SeedPurchase() {
                   </div>
                   <div>
                     <label className="label">{t('transaction_id')} *</label>
-                    <input value={form.transaction_id} onChange={e => setForm(f => ({ ...f, transaction_id: e.target.value }))}
-                      className="input-field" placeholder="UPI Transaction ID" required />
+                    <input value={form.transaction_id} onChange={e => setForm(f => ({ ...f, transaction_id: e.target.value.replace(/\D/g, '') }))}
+                      className="input-field" placeholder="UPI Transaction ID (12 digits)" required maxLength={12} pattern="\d{12}" />
                   </div>
                 </>
               )}

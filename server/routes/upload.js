@@ -19,12 +19,13 @@ router.post('/', async (req, res) => {
     const { image } = req.body;
     if (!image) return res.status(400).json({ error: 'No image provided' });
 
-    // Parse the data URI
-    const match = image.match(/^data:image\/(png|jpeg|jpg|gif|webp);base64,(.+)$/);
-    if (!match) return res.status(400).json({ error: 'Invalid image format. Must be a base64 data URI.' });
+    // Parse the data URI (supports images and pdf)
+    const match = image.match(/^data:(image\/(png|jpeg|jpg|gif|webp)|application\/pdf);base64,(.+)$/);
+    if (!match) return res.status(400).json({ error: 'Invalid file format. Must be an image or pdf base64 data URI.' });
 
-    const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
-    const base64Data = match[2];
+    const mimeType = match[1];
+    const ext = mimeType === 'application/pdf' ? 'pdf' : (mimeType.split('/')[1] === 'jpeg' ? 'jpg' : mimeType.split('/')[1]);
+    const base64Data = match[3];
     const buffer = Buffer.from(base64Data, 'base64');
 
     // Generate a unique filename

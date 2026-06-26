@@ -36,6 +36,13 @@ export default function TransactionHistory() {
     const a = document.createElement('a'); a.href = url; a.download = 'transactions.csv'; a.click();
   };
 
+  const downloadInvoice = (tx) => {
+    const content = `AGRIFLOW ERP INVOICE\n\nInvoice Number: ${tx.invoice_number}\nDate: ${new Date(tx.created_at).toLocaleString('en-IN')}\nDescription: ${tx.description}\nType: ${tx.direction}\nAmount: ${tx.amount}\nStatus: ${tx.status}\n\nThank you for using AgriFlow!`;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `Invoice_${tx.invoice_number}.txt`; a.click();
+  };
+
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-10 h-10 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" /></div>;
 
   return (
@@ -95,7 +102,11 @@ export default function TransactionHistory() {
                     <td className="text-xs max-w-[180px] truncate">{tx.description || '-'}</td>
                     <td className="text-xs">{tx.upi_id || '-'}</td>
                     <td className="text-xs">{tx.transaction_id || '-'}</td>
-                    <td>{tx.invoice_number ? <span className="badge-blue text-[10px]">{tx.invoice_number}</span> : '-'}</td>
+                    <td>{tx.invoice_number ? (
+                      <button onClick={() => downloadInvoice(tx)} className="badge-blue text-[10px] flex items-center gap-1 hover:bg-blue-200 transition-colors">
+                        {tx.invoice_number} <Download size={10} />
+                      </button>
+                    ) : '-'}</td>
                     <td className={`font-bold ${tx.direction === 'credit' ? 'text-green-600' : 'text-red-500'}`}>
                       {tx.direction === 'credit' ? '+' : '-'}₹{tx.amount.toLocaleString('en-IN')}
                     </td>

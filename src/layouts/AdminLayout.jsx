@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Users, Package, Warehouse, BarChart2,
   Calendar, MapPin, TrendingUp, Wheat, LogOut, Menu, X,
-  Globe, Shield, ChevronRight, Leaf, User
+  Globe, Shield, ChevronRight, Leaf, User, FileText
 } from 'lucide-react';
 import api from '../services/api/axios';
 import NotificationCenter from '../components/shared/NotificationCenter';
@@ -35,6 +35,7 @@ export default function AdminLayout() {
     { to: `${basePath}/reports`, icon: <BarChart2 size={18} />, label: t('reports'), roles: ['manager', 'super_admin'] },
     { to: `${basePath}/market-rates`, icon: <TrendingUp size={18} />, label: t('market_rates'), roles: ['manager', 'super_admin'] },
     { to: `${basePath}/grain-sales`, icon: <Wheat size={18} />, label: t('grain_sales'), roles: ['super_admin'] },
+    { to: `${basePath}/event-logs`, icon: <FileText size={18} />, label: t('event_logs') || 'Event Logs', roles: ['manager', 'super_admin'] },
     { to: `${basePath}/profile`, icon: <User size={18} />, label: t('profile_settings') || 'Profile & Settings', roles: ['manager', 'super_admin'] },
     { to: `/admin/dashboard`, icon: <Shield size={18} />, label: 'Super Admin Portal', roles: ['super_admin'] },
   ];

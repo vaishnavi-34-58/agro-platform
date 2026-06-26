@@ -44,6 +44,7 @@ export default function Register() {
   };
 
   const sendOTP = async () => {
+    if (form.password !== form.confirmPwd) return toast.error(t('passwords_do_not_match'));
     if (!/^\d{10}$/.test(form.phone)) return toast.error(t('enter_valid_phone'));
     setLoading(true);
     try {
@@ -154,7 +155,7 @@ export default function Register() {
                   <input type="password" value={form.confirmPwd} onChange={e => update('confirmPwd', e.target.value)} className={`input-field ${form.confirmPwd && form.confirmPwd !== form.password ? 'input-error' : ''}`} placeholder={t('repeat_password')} />
                 </div>
               </div>
-              <button onClick={sendOTP} disabled={loading || !form.name || !form.phone || !form.password}
+              <button onClick={sendOTP} disabled={loading || !form.name || !form.phone || !form.password || form.password !== form.confirmPwd}
                 className="btn-primary w-full py-3 flex items-center justify-center gap-2 mt-2">
                 {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
                 {t('send_otp')} <ArrowRight size={16} />

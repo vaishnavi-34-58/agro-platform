@@ -107,7 +107,7 @@ export default function FarmersDirectory() {
                                 </button>
                               </>
                             )}
-                            <button className="p-1.5 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200"><Eye size={14} /></button>
+                            <button onClick={e => { e.stopPropagation(); setSelected(f.id); loadDetail(f.id); }} className="p-1.5 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200"><Eye size={14} /></button>
                           </div>
                         </td>
                       </tr>

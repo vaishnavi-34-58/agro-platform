@@ -21,7 +21,6 @@ export default function SuperAdminLayout() {
     { to: '/admin/dashboard', icon: <LayoutDashboard size={18} />, label: t('dashboard'), end: true },
     { to: '/admin/dashboard/managers', icon: <UserCheck size={18} />, label: t('manage_admins') },
     { to: '/admin/dashboard/farmers', icon: <Users size={18} />, label: t('farmers') },
-    { to: '/admin/dashboard/audit-logs', icon: <FileText size={18} />, label: t('audit_logs') },
     { to: '/manager/dashboard', icon: <LayoutDashboard size={18} />, label: t('operational_portal') },
   ];
 

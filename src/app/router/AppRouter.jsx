@@ -35,12 +35,12 @@ import FarmVisits from '../../pages/admin/FarmVisits';
 import MarketRates from '../../pages/admin/MarketRates';
 import GrainSalesAdmin from '../../pages/admin/GrainSalesAdmin';
 import ManagerProfile from '../../pages/admin/ManagerProfile';
+import EventLogs from '../../pages/admin/EventLogs';
 
 // Super Admin Pages
 import SuperAdminLayout from '../../layouts/SuperAdminLayout';
 import SuperAdminDashboard from '../../pages/superadmin/Dashboard';
 import ManageAdmins from '../../pages/superadmin/ManageAdmins';
-import AuditLogs from '../../pages/superadmin/AuditLogs';
 import AllFarmers from '../../pages/superadmin/AllFarmers';
 
 import NotFound from '../../pages/shared/NotFound';
@@ -81,6 +81,7 @@ export default function AppRouter() {
         <Route path="visits" element={<FarmVisits />} />
         <Route path="market-rates" element={<MarketRates />} />
         <Route path="grain-sales" element={<ProtectedRoute allowedRoles={['super_admin']}><GrainSalesAdmin /></ProtectedRoute>} />
+        <Route path="event-logs" element={<EventLogs />} />
         <Route path="profile" element={<ManagerProfile />} />
       </Route>
 
@@ -90,7 +91,6 @@ export default function AppRouter() {
         <Route index element={<SuperAdminDashboard />} />
         <Route path="managers" element={<ManageAdmins />} />
         <Route path="farmers" element={<AllFarmers />} />
-        <Route path="audit-logs" element={<AuditLogs />} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

@@ -66,21 +66,27 @@ export default function FarmerProfile() {
     const file = e.target.files[0];
     if (!file) return;
     
-    // Simulate Supabase upload
-    const toastId = toast.loading(`Uploading ${file.name}...`);
-    try {
-      await new Promise(r => setTimeout(r, 1500)); // Fake network delay
-      const mockUrl = `https://mock-supabase-storage.com/${Date.now()}_${file.name}`;
-      
-      setDocForm(prev => ({ ...prev, [field]: mockUrl }));
-      await api.patch('/farmer/profile', { [field]: mockUrl });
-      
-      toast.success('File uploaded successfully', { id: toastId });
-      queryClient.invalidateQueries({ queryKey: ['farmer-profile'] });
-      refreshProfile();
-    } catch {
-      toast.error('Upload failed', { id: toastId });
-    }
+    if (file.size > 5 * 1024 * 1024) return toast.error('File must be under 5MB');
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result;
+      const toastId = toast.loading(`Uploading ${file.name}...`);
+      try {
+        const uploadRes = await api.post('/upload', { image: base64 });
+        const fileUrl = uploadRes.data.url;
+        
+        setDocForm(prev => ({ ...prev, [field]: fileUrl }));
+        await api.patch('/farmer/profile', { [field]: fileUrl });
+        
+        toast.success('File uploaded successfully', { id: toastId });
+        queryClient.invalidateQueries({ queryKey: ['farmer-profile'] });
+        refreshProfile();
+      } catch (err) {
+        toast.error('Upload failed', { id: toastId });
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const requestBankChange = async () => {

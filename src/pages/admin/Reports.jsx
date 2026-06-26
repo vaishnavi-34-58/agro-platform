@@ -19,7 +19,65 @@ export default function Reports() {
     }
   });
 
-  const downloadCSV = () => { toast.success(t('report_downloaded')); };
+  const downloadCSV = async (type = 'full_report') => {
+    try {
+      let header = '';
+      let rows = '';
+
+      if (type === 'farmer_registration_data') {
+        const res = await api.get('/admin/farmers');
+        const farmers = res.data || [];
+        header = 'ID,Name,Phone,Village,Aadhaar,Land (acres),Joined Date\n';
+        rows = farmers.map(f =>
+          `${f.id},"${f.name || ''}","${f.phone || ''}","${f.village || ''}","${f.aadhaar_number || ''}",${f.land_acres || 0},${f.created_at ? new Date(f.created_at).toLocaleDateString('en-IN') : ''}`
+        ).join('\n');
+      } else if (type === 'transaction_ledger') {
+        const res = await api.get('/admin/grain-sales');
+        const sales = res.data || [];
+        header = 'ID,Farmer,Grain Type,Quantity (kg),Price/kg,Total Amount,Status,Date\n';
+        rows = sales.map(s =>
+          `${s.id},"${s.farmer_name || ''}","${s.grain_type || ''}",${s.quantity_kg || 0},${s.price_per_kg || 0},${s.total_amount || 0},"${s.status || ''}",${s.created_at ? new Date(s.created_at).toLocaleDateString('en-IN') : ''}`
+        ).join('\n');
+      } else if (type === 'warehouse_inventory_logs') {
+        const res = await api.get('/admin/warehouses');
+        const warehouses = res.data || [];
+        header = 'ID,Name,Location,Capacity (MT),Used (MT),Available (MT),Manager\n';
+        rows = warehouses.map(w =>
+          `${w.id},"${w.name || ''}","${w.location || ''}",${w.capacity_mt || 0},${w.used_mt || 0},${(w.capacity_mt || 0) - (w.used_mt || 0)},"${w.manager_name || ''}"`
+        ).join('\n');
+      } else {
+        // Full report — combine dashboard stats + monthly sales
+        const dashData = data || {};
+        header = 'Metric,Value\n';
+        const metrics = [
+          ['Total Farmers', dashData.totalFarmers || 0],
+          ['Active Crops', dashData.activeCrops || 0],
+          ['Total Revenue', dashData.totalRevenue || 0],
+          ['Pending Payments', dashData.pendingPayments || 0],
+        ];
+        if (dashData.monthlySales) {
+          dashData.monthlySales.forEach(m => {
+            metrics.push([`Revenue ${m.month?.slice(0, 7) || ''}`, m.total || 0]);
+          });
+        }
+        rows = metrics.map(([k, v]) => `"${k}",${v}`).join('\n');
+      }
+
+      const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${type}_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success(t('report_downloaded'));
+    } catch (err) {
+      console.error('Download failed:', err);
+      toast.error('Failed to download report');
+    }
+  };
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-10 h-10 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" /></div>;
 
@@ -30,7 +88,7 @@ export default function Reports() {
     <div className="animate-fade-in">
       <div className="page-header">
         <div><h1 className="page-title">{t('reports')}</h1><p className="page-subtitle">{t("reports_desc")}</p></div>
-        <button onClick={downloadCSV} className="btn-secondary flex items-center gap-2"><Download size={16} />{t("export_full_report")}</button>
+        <button onClick={() => downloadCSV('full_report')} className="btn-secondary flex items-center gap-2"><Download size={16} />{t("export_full_report")}</button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -65,11 +123,11 @@ export default function Reports() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
-          { title: t('farmer_registration_data'), desc: t('farmer_registration_data_desc'), icon: <Calendar size={18} /> },
-          { title: t('transaction_ledger'), desc: t('transaction_ledger_desc'), icon: <ArrowRight size={18} /> },
-          { title: t('warehouse_inventory_logs'), desc: t('warehouse_inventory_logs_desc'), icon: <Download size={18} /> },
+          { id: 'farmer_registration_data', title: t('farmer_registration_data'), desc: t('farmer_registration_data_desc'), icon: <Calendar size={18} /> },
+          { id: 'transaction_ledger', title: t('transaction_ledger'), desc: t('transaction_ledger_desc'), icon: <ArrowRight size={18} /> },
+          { id: 'warehouse_inventory_logs', title: t('warehouse_inventory_logs'), desc: t('warehouse_inventory_logs_desc'), icon: <Download size={18} /> },
         ].map(r => (
-          <div key={r.title} className="glass-card p-5 hover-lift cursor-pointer" onClick={downloadCSV}>
+          <div key={r.title} className="glass-card p-5 hover-lift cursor-pointer" onClick={() => downloadCSV(r.id)}>
             <div className="w-10 h-10 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center mb-4">{r.icon}</div>
             <h4 className="font-bold text-gray-800 mb-1">{r.title}</h4>
             <p className="text-xs text-gray-500 mb-4">{r.desc}</p>
