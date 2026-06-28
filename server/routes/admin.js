@@ -274,7 +274,7 @@ router.patch('/seed-purchases/:id', ...isAdmin, async (req, res) => {
   try {
     const paymentStatus = status === 'approved' ? 'paid' : 'failed';
     const { rows } = await db.query(
-      "UPDATE seed_purchases SET payment_status = $1, updated_at = now() WHERE id = $2 RETURNING farmer_id, total_amount",
+      "UPDATE seed_purchases SET payment_status = $1 WHERE id = $2 RETURNING farmer_id, total_amount",
       [paymentStatus, req.params.id]
     );
 
