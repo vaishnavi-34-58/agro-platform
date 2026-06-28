@@ -68,6 +68,8 @@ export default function NotificationCenter() {
         await api.patch(`/admin/bank-requests/${notif.reference_id}`, { status });
       } else if (notif.reference_type === 'booking_slot') {
         await api.patch(`/admin/booking-slots/${notif.reference_id}`, { status });
+      } else if (notif.reference_type === 'seed_purchase') {
+        await api.patch(`/admin/seed-purchases/${notif.reference_id}`, { status });
       }
       
       // Mark this specific notification as read so it doesn't prompt again

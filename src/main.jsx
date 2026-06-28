@@ -7,9 +7,10 @@ import './index.css'
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30_000,          // data stays fresh for 30 seconds
-      gcTime: 5 * 60_000,         // cache kept in memory for 5 minutes
-      refetchOnWindowFocus: true, // silently refetch when user tabs back
+      staleTime: 5000,            // Data stays fresh for 5 seconds
+      gcTime: 5 * 60_000,         // Cache kept in memory for 5 minutes
+      refetchInterval: 5000,      // Auto-refresh every 5 seconds globally
+      refetchOnWindowFocus: true, // Silently refetch when user tabs back
       retry: 1,
     },
   },

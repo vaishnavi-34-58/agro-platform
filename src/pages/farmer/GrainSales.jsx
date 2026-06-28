@@ -14,8 +14,7 @@ export default function GrainSales() {
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    crop_id: '', grain_type: 'Rice', grade: 'A',
-    raw_material_kg: '', wastage_kg: '', good_material_kg: ''
+    grain_type: 'Rice', quantity_kg: '', warehouse_id: ''
   });
 
   const { data: sales = [], isLoading: salesLoading } = useQuery({
@@ -30,26 +29,28 @@ export default function GrainSales() {
     queryKey: ['farmer-market-rates'],
     queryFn: async () => { const res = await api.get('/farmer/market-rates'); return res.data; }
   });
+  const { data: warehouses = [], isLoading: warehousesLoading } = useQuery({
+    queryKey: ['farmer-warehouses'],
+    queryFn: async () => { const res = await api.get('/farmer/warehouses'); return res.data; }
+  });
 
   const crops = allCrops.filter(c => c.status === 'growing' || c.status === 'harvested');
-  const loading = salesLoading || cropsLoading || ratesLoading;
+  const loading = salesLoading || cropsLoading || ratesLoading || warehousesLoading;
 
   const getRate = (grain, grade) => rates.find(r => r.crop_type === grain && r.grade === grade)?.price_per_kg || 0;
   const estimated = form.good_material_kg ? (parseFloat(form.good_material_kg) * getRate(form.grain_type, form.grade)).toFixed(2) : '0.00';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.good_material_kg) return toast.error(t('enter_good_material'));
+    if (!form.quantity_kg) return toast.error(t('enter_valid_quantity', 'Enter valid quantity'));
     setSaving(true);
     try {
       const { data } = await api.post('/farmer/grain-sale', {
-        crop_id: form.crop_id || null,
-        grain_type: form.grain_type, grade: form.grade,
-        raw_material_kg: parseFloat(form.raw_material_kg) || 0,
-        wastage_kg: parseFloat(form.wastage_kg) || 0,
-        good_material_kg: parseFloat(form.good_material_kg),
+        grain_type: form.grain_type,
+        quantity_kg: parseFloat(form.quantity_kg),
+        warehouse_id: form.warehouse_id,
       });
-      toast.success(`Grain sale submitted! Estimated: ₹${data.estimated_amount.toFixed(2)}`);
+      toast.success(data.message || 'Grain sale submitted!');
       setShowModal(false); 
       queryClient.invalidateQueries({ queryKey: ['farmer-grain-sales'] });
     } catch (err) { toast.error(err.response?.data?.error || 'Submission failed'); }
@@ -91,21 +92,15 @@ export default function GrainSales() {
         <div className="table-container">
           <table className="data-table">
             <thead><tr>
-              <th>{t('grain_type')}</th><th>{t('grade')}</th><th>{t('raw_material')} (kg)</th><th>{t('wastage')} (kg)</th>
-              <th>{t('good_material')} (kg)</th><th>{t('price_per_kg')}</th><th>{t('amount')}</th><th>{t('status')}</th><th>{t('date')}</th>
+              <th>{t('grain_type')}</th><th>{t('quantity')} (kg)</th><th>{t('status')}</th><th>{t('date')}</th>
             </tr></thead>
             <tbody>
               {sales.length === 0
-                ? <tr><td colSpan={9} className="text-center py-10 text-gray-400">{t('no_grain_sales_yet')}</td></tr>
+                ? <tr><td colSpan={4} className="text-center py-10 text-gray-400">{t('no_grain_sales_yet')}</td></tr>
                 : sales.map(s => (
                   <tr key={s.id}>
                     <td><p className="font-semibold">{s.grain_type}</p></td>
-                    <td><span className={`badge ${s.grade === 'A' ? 'badge-green' : s.grade === 'B' ? 'badge-yellow' : 'badge-gray'}`}>Grade {s.grade}</span></td>
                     <td>{s.raw_material_kg} kg</td>
-                    <td className="text-red-500">{s.wastage_kg} kg</td>
-                    <td className="text-green-600 font-semibold">{s.good_material_kg} kg</td>
-                    <td>₹{s.price_per_kg || 'TBD'}</td>
-                    <td className="font-bold">₹{(s.total_amount || 0).toLocaleString('en-IN')}</td>
                     <td><span className={`badge ${statusBadge(s.status)}`}>{s.status}</span></td>
                     <td className="text-xs">{new Date(s.created_at).toLocaleDateString('en-IN')}</td>
                   </tr>
@@ -123,58 +118,30 @@ export default function GrainSales() {
             <div className="modal-header">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center"><Wheat size={20} className="text-amber-600" /></div>
-                <div><h3 className="font-bold text-gray-800">{t('submit_grain_sale')}</h3><p className="text-xs text-gray-500">{t('good_material_counts_desc')}</p></div>
+                <div><h3 className="font-bold text-gray-800">{t('submit_grain_sale')}</h3><p className="text-xs text-gray-500">Manager will assign slot for checking grains.</p></div>
               </div>
               <button onClick={() => setShowModal(false)} className="btn-icon"><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit} className="modal-body space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label">{t('grain_type')} *</label>
-                  <select value={form.grain_type} onChange={e => setForm(f => ({ ...f, grain_type: e.target.value }))} className="input-field">
-                    {GRAIN_TYPES.map(g => <option key={g}>{g}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">{t('grade')} *</label>
-                  <select value={form.grade} onChange={e => setForm(f => ({ ...f, grade: e.target.value }))} className="input-field">
-                    {GRADES.map(g => <option key={g} value={g}>Grade {g}</option>)}
-                  </select>
-                </div>
-              </div>
               <div>
-                <label className="label">{t('link_to_crop')}</label>
-                <select value={form.crop_id} onChange={e => setForm(f => ({ ...f, crop_id: e.target.value }))} className="input-field">
-                  <option value="">-- None --</option>
-                  {crops.map(c => <option key={c.id} value={c.id}>{c.crop_type} ({c.acres} acres, sowed {c.sowing_date})</option>)}
+                <label className="label">{t('grain_type')} *</label>
+                <select value={form.grain_type} onChange={e => setForm(f => ({ ...f, grain_type: e.target.value }))} className="input-field">
+                  {GRAIN_TYPES.map(g => <option key={g}>{g}</option>)}
                 </select>
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="label">{t('raw_material')}</label>
-                  <input type="number" value={form.raw_material_kg} onChange={e => setForm(f => ({ ...f, raw_material_kg: e.target.value }))}
-                    className="input-field" placeholder="0" min="0" step="0.1" />
-                </div>
-                <div>
-                  <label className="label">{t('wastage')}</label>
-                  <input type="number" value={form.wastage_kg} onChange={e => setForm(f => ({ ...f, wastage_kg: e.target.value }))}
-                    className="input-field" placeholder="0" min="0" step="0.1" />
-                </div>
-                <div>
-                  <label className="label">{t('good_material')} *</label>
-                  <input type="number" value={form.good_material_kg} onChange={e => setForm(f => ({ ...f, good_material_kg: e.target.value }))}
-                    className="input-field" placeholder="0" min="0" step="0.1" required />
-                </div>
+              <div>
+                <label className="label">{t('warehouse')} *</label>
+                <select value={form.warehouse_id || ''} onChange={e => setForm(f => ({ ...f, warehouse_id: e.target.value }))} className="input-field" required>
+                  <option value="">{t('select_warehouse', 'Select Warehouse')}</option>
+                  {warehouses.map(w => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
               </div>
-              <div className="p-4 bg-green-50 rounded-xl border border-green-100">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">{t('estimated_payment')}</p>
-                    <p className="text-xs text-gray-500">{form.good_material_kg || 0} kg × ₹{getRate(form.grain_type, form.grade)}/kg (Grade {form.grade})</p>
-                  </div>
-                  <p className="text-2xl font-bold text-agro-green">₹{estimated}</p>
-                </div>
-                <p className="text-xs text-amber-600 mt-2 flex items-center gap-1"><Info size={12} />{t('wastage_note')}</p>
+              <div>
+                <label className="label">{t('quantity')} (kg) *</label>
+                <input type="number" value={form.quantity_kg || ''} onChange={e => setForm(f => ({ ...f, quantity_kg: e.target.value }))}
+                  className="input-field" placeholder="0" min="1" step="0.1" required />
               </div>
             </form>
             <div className="modal-footer">

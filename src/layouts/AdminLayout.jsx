@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api/axios';
 import NotificationCenter from '../components/shared/NotificationCenter';
+import LiveMarketRatesWidget from '../components/shared/LiveMarketRatesWidget';
 
 const LANGUAGES = [
   { code: 'en', label: 'English', flag: '🇬🇧' },
@@ -128,6 +129,7 @@ export default function AdminLayout() {
           <Outlet />
         </main>
       </div>
+      <LiveMarketRatesWidget />
     </div>
   );
 }

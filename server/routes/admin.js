@@ -75,11 +75,15 @@ router.get('/dashboard', ...isAdmin, async (req, res) => {
       GROUP BY month ORDER BY month DESC LIMIT 12
     `);
 
+    const { rows: marketRates } = await db.query(
+      'SELECT crop_type, grade, price_per_kg FROM market_rates ORDER BY crop_type, grade'
+    );
+
     res.json({
       totalFarmers, activeFarmers, procurementMTD, warehouseInv,
       revenueMTD, profitMTD, pendingPayments, activeCrops, visitorToday,
       pendingFarmers: pendingFarmersCount, totalRevenue: revenueMTD,
-      warehouses, recentTx, monthlySales,
+      warehouses, recentTx, monthlySales, marketRates,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -164,9 +168,14 @@ router.patch('/farmers/:id/approve', ...isAdmin, async (req, res) => {
     );
     await db.query(
       `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'farmer', $3, $4)`,
-      [req.user.id, `FARMER_${status.toUpperCase()}`, req.params.id, notes || '']
+      [req.user.id, status === 'active' ? 'Confirm Registration' : 'Reject Registration', req.params.id, status === 'active' ? 'Approved farmer registration' : `Rejected farmer registration. ${notes || ''}`]
     );
-    res.json({ message: `Farmer ${status}` });
+    // Mark notification as read globally
+    await db.query(
+      "UPDATE notifications SET is_read = TRUE WHERE reference_type = 'farmer' AND reference_id = $1",
+      [req.params.id]
+    );
+    res.json({ message: 'Farmer status updated' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -215,6 +224,15 @@ router.patch('/bank-requests/:id', authMiddleware, requireRole('super_admin'), a
        `Your bank detail change request has been ${status}.`,
        status === 'approved' ? 'success' : 'error']
     );
+    await db.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'bank_request', $3, $4)`,
+      [req.user.id, status === 'approved' ? 'Approve Bank Details' : 'Reject Bank Details', req.params.id, `Manager ${status} bank detail change for farmer ${req_rec.farmer_id}`]
+    );
+    // Mark notification as read globally
+    await db.query(
+      "UPDATE notifications SET is_read = TRUE WHERE reference_type = 'bank_request' AND reference_id = $1",
+      [req.params.id]
+    );
     res.json({ message: `Bank request ${status}` });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -239,7 +257,51 @@ router.post('/seeds', ...isAdmin, async (req, res) => {
       `INSERT INTO seeds (name, variety, price_per_kg, stock_kg, description) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
       [name, variety, price_per_kg, stock_kg, description]
     );
+    await db.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'seed', $3, $4)`,
+      [req.user.id, 'Add Seed', rows[0].id, `Added seed: ${name} (${variety}), ₹${price_per_kg}/kg, stock: ${stock_kg}kg`]
+    );
     res.status(201).json({ id: rows[0].id, message: 'Seed added' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/admin/seed-purchases/:id
+router.patch('/seed-purchases/:id', ...isAdmin, async (req, res) => {
+  const { status } = req.body;
+  if (!['approved', 'rejected'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
+  try {
+    const paymentStatus = status === 'approved' ? 'paid' : 'failed';
+    const { rows } = await db.query(
+      "UPDATE seed_purchases SET payment_status = $1, updated_at = now() WHERE id = $2 RETURNING farmer_id, total_amount",
+      [paymentStatus, req.params.id]
+    );
+
+    if (rows.length > 0) {
+      const p = rows[0];
+      if (status === 'approved') {
+        // Add transaction ledger entry since it's now paid
+        await db.query(
+          `INSERT INTO transactions
+             (reference_type, reference_id, farmer_id, amount, direction, status, description)
+           VALUES ('seed_purchase', $1, $2, $3, 'debit', 'completed', 'Seed purchase payment received at warehouse')`,
+          [req.params.id, p.farmer_id, p.total_amount]
+        );
+      }
+      
+      await db.query(
+        `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'seed_purchase', $3, $4)`,
+        [req.user.id, status === 'approved' ? 'Approve Seed Purchase' : 'Reject Seed Purchase', req.params.id, `Manager ${status} the warehouse payment of ₹${p.total_amount}`]
+      );
+
+      // Mark notification as read globally
+      await db.query(
+        "UPDATE notifications SET is_read = TRUE WHERE reference_type = 'seed_purchase' AND reference_id = $1",
+        [req.params.id]
+      );
+    }
+    res.json({ message: `Seed purchase ${status}` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -261,6 +323,10 @@ router.patch('/seeds/:id', ...isAdmin, async (req, res) => {
            updated_at  = now()
        WHERE id = $7`,
       [name, variety, updatedPrice, stock_kg, description, is_active, req.params.id]
+    );
+    await db.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'seed', $3, $4)`,
+      [req.user.id, 'Update Seed', req.params.id, `Updated seed fields: ${[name && 'name', variety && 'variety', price_per_kg && 'price', stock_kg && 'stock', description && 'description', is_active !== undefined && 'active status'].filter(Boolean).join(', ')}`]
     );
     res.json({ message: 'Seed updated' });
   } catch (err) {
@@ -442,6 +508,10 @@ router.post('/visits', ...isAdmin, async (req, res) => {
       `INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, 'info')`,
       [farmer_id, 'Farm Visit Scheduled', `A visit has been scheduled for ${scheduled_date} (Month ${visit_month}).`]
     );
+    await db.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'farm_visit', $3, $4)`,
+      [req.user.id, 'Schedule Farm Visit', rows[0].id, `Scheduled visit for farmer ${farmer_id} on ${scheduled_date}`]
+    );
     res.status(201).json({ id: rows[0].id, message: 'Visit scheduled' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -461,6 +531,10 @@ router.patch('/visits/:id', ...isAdmin, async (req, res) => {
            scheduled_date = COALESCE($5, scheduled_date)
        WHERE id = $6`,
       [status, actual_date, verified_acres, report, scheduled_date, req.params.id]
+    );
+    await db.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'farm_visit', $3, $4)`,
+      [req.user.id, status ? `Update Farm Visit (${status})` : 'Update Farm Visit', req.params.id, `Updated visit: ${[status && `status=${status}`, actual_date && `actual_date=${actual_date}`, verified_acres && `acres=${verified_acres}`, report && 'report added'].filter(Boolean).join(', ')}`]
     );
     res.json({ message: 'Visit updated' });
   } catch (err) {
@@ -522,6 +596,10 @@ router.post('/market-rates', ...isAdmin, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5) RETURNING id`,
       [crop_type, grade, price_per_kg, effective_date || new Date().toISOString().split('T')[0], req.user.id]
     );
+    await db.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'market_rate', $3, $4)`,
+      [req.user.id, 'Set Market Rate', rows[0].id, `Set rate for ${crop_type} Grade ${grade}: ₹${price_per_kg}/kg`]
+    );
     res.status(201).json({ id: rows[0].id, message: 'Rate set' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -557,6 +635,10 @@ router.patch('/transactions/:id/pay', ...isAdmin, async (req, res) => {
       `INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, 'success')`,
       [tx.farmer_id, 'Payment Received',
        `A payment of ₹${parseFloat(tx.amount).toFixed(2)} for ${tx.description} has been processed.`]
+    );
+    await db.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'transaction', $3, $4)`,
+      [req.user.id, 'Process Payment', tx.id, `Paid ₹${parseFloat(tx.amount).toFixed(2)} for ${tx.description}`]
     );
     res.json({ message: 'Transaction paid successfully' });
   } catch (err) {
@@ -623,6 +705,17 @@ router.patch('/booking-slots/:id', ...isAdmin, async (req, res) => {
        `Your delivery slot on ${slot.booking_date} has been ${status}.`,
        status === 'confirmed' ? 'success' : 'warning']
     );
+    await db.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'booking_slot', $3, $4)`,
+      [req.user.id, status === 'confirmed' ? 'Confirm Slot' : 'Reject Slot', req.params.id, `Manager ${status} booking slot for ${slot.quantity_kg}kg of ${slot.grain_type}`]
+    );
+
+    // Mark notification as read globally
+    await db.query(
+      "UPDATE notifications SET is_read = TRUE WHERE reference_type = 'booking_slot' AND reference_id = $1",
+      [req.params.id]
+    );
+
     res.json({ message: `Slot ${status}` });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -675,6 +768,10 @@ router.patch('/grain-sales/:id', ...isAdmin, async (req, res) => {
       [sale.farmer_id, `Grain Sale ${status}`,
        `Your grain sale request has been ${status}. Amount: ₹${total.toFixed(2)}`,
        status === 'approved' ? 'success' : 'error']
+    );
+    await db.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'grain_sale', $3, $4)`,
+      [req.user.id, status === 'approved' ? 'Approve Grain Sale' : 'Reject Grain Sale', req.params.id, `Manager ${status} grain sale of ${sale.grain_type}. Amount: ₹${total.toFixed(2)}`]
     );
     res.json({ message: `Sale ${status}` });
   } catch (err) {
@@ -755,6 +852,10 @@ router.post('/managers', authMiddleware, requireRole('super_admin'), async (req,
       `INSERT INTO admin_profiles (user_id, department) VALUES ($1, $2)`,
       [userId, department || 'Agriculture']
     );
+    await db.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'manager', $3, $4)`,
+      [req.user.id, 'Create Manager', userId, `Created manager: ${name} (${phone}), dept: ${department || 'Agriculture'}`]
+    );
     res.status(201).json({ id: userId, message: 'Manager created' });
   } catch (err) {
     res.status(400).json({ error: 'Phone/email already exists' });
@@ -766,6 +867,10 @@ router.patch('/managers/:id', authMiddleware, requireRole('super_admin'), async 
   const { status } = req.body;
   try {
     await db.query("UPDATE users SET status = $1 WHERE id = $2 AND role = 'manager'", [status, req.params.id]);
+    await db.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'manager', $3, $4)`,
+      [req.user.id, status === 'active' ? 'Activate Manager' : 'Deactivate Manager', req.params.id, `Manager status changed to ${status}`]
+    );
     res.json({ message: 'Manager updated' });
   } catch (err) {
     res.status(500).json({ error: err.message });

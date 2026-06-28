@@ -70,6 +70,7 @@ export default function AdminDashboard() {
         <StatCard icon={<Clock size={22} />} value={data?.pendingPayments || 0} label={t("pending_payments")} color="bg-agro-warning" />
         <StatCard icon={<Users size={22} />} value={data?.visitorToday || 0} label={t("visitors_today")} color="bg-purple-500" />
       </div>
+      
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         {/* Revenue Chart */}

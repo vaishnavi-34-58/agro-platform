@@ -22,7 +22,7 @@ export default function SeedPurchase() {
   const [showModal, setShowModal] = useState(false);
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState('');
-  const [form, setForm] = useState({ quantity_kg: '', payment_method: 'upi', upi_id: '', transaction_id: '' });
+  const [form, setForm] = useState({ quantity_kg: '', payment_method: 'upi', upi_id: '', transaction_id: '', warehouse_id: '' });
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState('browse');
   
@@ -42,9 +42,14 @@ export default function SeedPurchase() {
     queryFn: async () => { const res = await api.get('/farmer/seed-purchases'); return res.data; }
   });
 
+  const { data: warehouses = [] } = useQuery({
+    queryKey: ['farmer-warehouses'],
+    queryFn: async () => { const res = await api.get('/farmer/warehouses'); return res.data; }
+  });
+
   const loading = seedsLoading || purchasesLoading;
 
-  const openBuy = (seed) => { setSelected(seed); setForm({ quantity_kg: '', payment_method: 'upi', upi_id: '', transaction_id: '' }); setShowModal(true); };
+  const openBuy = (seed) => { setSelected(seed); setForm({ quantity_kg: '', payment_method: 'upi', upi_id: '', transaction_id: '', warehouse_id: '' }); setShowModal(true); };
 
   const handlePurchase = async (e) => {
     e.preventDefault();
@@ -61,6 +66,7 @@ export default function SeedPurchase() {
         payment_method: form.payment_method,
         upi_id: form.payment_method === 'upi' ? form.upi_id : null,
         transaction_id: form.payment_method === 'upi' ? form.transaction_id : null,
+        warehouse_id: form.warehouse_id,
       });
       toast.success(`Purchase successful! Invoice: ${data.invoice_number} | Amount: ₹${data.total_amount.toFixed(2)}`);
       setShowModal(false);
@@ -71,10 +77,81 @@ export default function SeedPurchase() {
   };
 
   const downloadInvoice = (p) => {
-    const content = `AGRIFLOW ERP INVOICE\n\nInvoice Number: ${p.invoice_number}\nDate: ${new Date(p.created_at).toLocaleString('en-IN')}\nSeed Name: ${p.seed_name} (${p.variety})\nQuantity: ${p.quantity_kg} kg\nPrice: ₹${p.price_per_kg}/kg\nTotal Amount: ₹${p.total_amount}\nStatus: ${p.payment_status}\n\nThank you for using AgriFlow!`;
-    const blob = new Blob([content], { type: 'text/plain' });
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Invoice ${p.invoice_number}</title>
+    <style>
+        body { font-family: 'Inter', sans-serif; padding: 40px; color: #333; max-width: 800px; margin: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #16a34a; padding-bottom: 20px; margin-bottom: 30px; }
+        .logo { font-size: 24px; font-weight: bold; color: #16a34a; }
+        .invoice-title { font-size: 28px; font-weight: bold; color: #1f2937; }
+        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px; }
+        .detail-box { background: #f8fafc; padding: 15px; border-radius: 8px; }
+        .label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+        .value { font-size: 16px; font-weight: 600; color: #0f172a; }
+        table { w-full; width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        th { text-align: left; padding: 12px; background: #f1f5f9; color: #475569; font-size: 13px; text-transform: uppercase; border-radius: 4px; }
+        td { padding: 15px 12px; border-bottom: 1px solid #e2e8f0; font-size: 15px; }
+        .total-row { text-align: right; font-size: 20px; font-weight: bold; color: #16a34a; padding-top: 20px; }
+        .footer { text-align: center; color: #64748b; font-size: 14px; margin-top: 50px; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">🌱 AgriFlow</div>
+        <div class="invoice-title">INVOICE</div>
+    </div>
+    
+    <div class="details-grid">
+        <div class="detail-box">
+            <div class="label">Invoice Number</div>
+            <div class="value">${p.invoice_number}</div>
+            <div class="label" style="margin-top: 10px;">Date</div>
+            <div class="value">${new Date(p.created_at).toLocaleString('en-IN')}</div>
+        </div>
+        <div class="detail-box">
+            <div class="label">Payment Status</div>
+            <div class="value" style="color: ${p.payment_status === 'paid' ? '#16a34a' : '#ea580c'}; text-transform: capitalize;">${p.payment_status === 'pending' ? 'Pay at Warehouse' : p.payment_status}</div>
+            <div class="label" style="margin-top: 10px;">Transaction ID</div>
+            <div class="value">${p.transaction_id || '-'}</div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Seed Item</th>
+                <th>Quantity</th>
+                <th>Price/kg</th>
+                <th style="text-align: right;">Total Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>${p.seed_name}</strong><br><span style="color: #64748b; font-size: 13px;">Variety: ${p.variety}</span></td>
+                <td>${p.quantity_kg} kg</td>
+                <td>₹${p.price_per_kg}</td>
+                <td style="text-align: right; font-weight: 600;">₹${p.total_amount.toLocaleString('en-IN')}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="total-row">
+        Total Paid: ₹${p.total_amount.toLocaleString('en-IN')}
+    </div>
+
+    <div class="footer">
+        Thank you for choosing AgriFlow for your agricultural needs!<br>
+        <small>This is a computer-generated invoice and requires no signature.</small>
+    </div>
+</body>
+</html>`;
+    const blob = new Blob([htmlContent], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `Invoice_${p.invoice_number}.txt`; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = `Invoice_${p.invoice_number}.html`; a.click();
   };
 
   // Derive filter data
@@ -321,6 +398,16 @@ export default function SeedPurchase() {
                     ⚠️ Stock will be reserved for 24 hours. If not paid at the warehouse, the order will be cancelled.
                   </p>
                 )}
+              </div>
+
+              <div>
+                <label className="label">{t('warehouse')} *</label>
+                <select value={form.warehouse_id || ''} onChange={e => setForm(f => ({ ...f, warehouse_id: e.target.value }))} className="input-field" required>
+                  <option value="">{t('select_warehouse', 'Select Warehouse')}</option>
+                  {warehouses.map(w => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
               </div>
 
               {form.payment_method === 'upi' && (

@@ -19,59 +19,109 @@ export default function Reports() {
     }
   });
 
-  const downloadCSV = async (type = 'full_report') => {
+  const downloadReport = async (type = 'full_report') => {
     try {
-      let header = '';
-      let rows = '';
+      let title = '';
+      let tableHeaders = [];
+      let tableRows = [];
 
       if (type === 'farmer_registration_data') {
         const res = await api.get('/admin/farmers');
-        const farmers = res.data || [];
-        header = 'ID,Name,Phone,Village,Aadhaar,Land (acres),Joined Date\n';
-        rows = farmers.map(f =>
-          `${f.id},"${f.name || ''}","${f.phone || ''}","${f.village || ''}","${f.aadhaar_number || ''}",${f.land_acres || 0},${f.created_at ? new Date(f.created_at).toLocaleDateString('en-IN') : ''}`
-        ).join('\n');
+        title = 'Farmer Registration Data';
+        tableHeaders = ['ID', 'Name', 'Phone', 'Village', 'Aadhaar', 'Land (acres)', 'Joined Date'];
+        tableRows = (res.data || []).map(f => [
+          f.id, f.name || '-', f.phone || '-', f.village || '-', f.aadhaar_number || '-', f.land_acres || 0,
+          f.created_at ? new Date(f.created_at).toLocaleDateString('en-IN') : '-'
+        ]);
       } else if (type === 'transaction_ledger') {
         const res = await api.get('/admin/grain-sales');
-        const sales = res.data || [];
-        header = 'ID,Farmer,Grain Type,Quantity (kg),Price/kg,Total Amount,Status,Date\n';
-        rows = sales.map(s =>
-          `${s.id},"${s.farmer_name || ''}","${s.grain_type || ''}",${s.quantity_kg || 0},${s.price_per_kg || 0},${s.total_amount || 0},"${s.status || ''}",${s.created_at ? new Date(s.created_at).toLocaleDateString('en-IN') : ''}`
-        ).join('\n');
+        title = 'Transaction Ledger';
+        tableHeaders = ['ID', 'Farmer', 'Grain Type', 'Quantity (kg)', 'Price/kg', 'Total Amount', 'Status', 'Date'];
+        tableRows = (res.data || []).map(s => [
+          s.id, s.farmer_name || '-', s.grain_type || '-', s.quantity_kg || 0, `₹${s.price_per_kg || 0}`, `₹${s.total_amount || 0}`, s.status || '-',
+          s.created_at ? new Date(s.created_at).toLocaleDateString('en-IN') : '-'
+        ]);
       } else if (type === 'warehouse_inventory_logs') {
         const res = await api.get('/admin/warehouses');
-        const warehouses = res.data || [];
-        header = 'ID,Name,Location,Capacity (MT),Used (MT),Available (MT),Manager\n';
-        rows = warehouses.map(w =>
-          `${w.id},"${w.name || ''}","${w.location || ''}",${w.capacity_mt || 0},${w.used_mt || 0},${(w.capacity_mt || 0) - (w.used_mt || 0)},"${w.manager_name || ''}"`
-        ).join('\n');
+        title = 'Warehouse Inventory Logs';
+        tableHeaders = ['ID', 'Name', 'Location', 'Capacity (MT)', 'Used (MT)', 'Available (MT)', 'Manager'];
+        tableRows = (res.data || []).map(w => [
+          w.id, w.name || '-', w.location || '-', w.capacity_mt || 0, w.used_mt || 0, (w.capacity_mt || 0) - (w.used_mt || 0), w.manager_name || '-'
+        ]);
       } else {
-        // Full report — combine dashboard stats + monthly sales
         const dashData = data || {};
-        header = 'Metric,Value\n';
-        const metrics = [
+        title = 'Full System Report';
+        tableHeaders = ['Metric', 'Value'];
+        tableRows = [
           ['Total Farmers', dashData.totalFarmers || 0],
           ['Active Crops', dashData.activeCrops || 0],
-          ['Total Revenue', dashData.totalRevenue || 0],
-          ['Pending Payments', dashData.pendingPayments || 0],
+          ['Total Revenue', `₹${dashData.totalRevenue || 0}`],
+          ['Pending Payments', dashData.pendingPayments || 0]
         ];
         if (dashData.monthlySales) {
           dashData.monthlySales.forEach(m => {
-            metrics.push([`Revenue ${m.month?.slice(0, 7) || ''}`, m.total || 0]);
+            tableRows.push([`Revenue ${m.month?.slice(0, 7) || ''}`, `₹${m.total || 0}`]);
           });
         }
-        rows = metrics.map(([k, v]) => `"${k}",${v}`).join('\n');
       }
 
-      const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+      const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>${title}</title>
+    <style>
+        body { font-family: 'Inter', sans-serif; padding: 40px; color: #333; background: #f8fafc; }
+        .report-container { background: #fff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); max-width: 1000px; margin: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #16a34a; padding-bottom: 20px; margin-bottom: 30px; }
+        .logo { font-size: 24px; font-weight: bold; color: #16a34a; }
+        .report-title { font-size: 24px; font-weight: bold; color: #1f2937; text-transform: uppercase; letter-spacing: 1px; }
+        .meta { font-size: 14px; color: #64748b; margin-bottom: 30px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        th { text-align: left; padding: 12px; background: #f1f5f9; color: #475569; font-size: 13px; text-transform: uppercase; border-radius: 4px; border: 1px solid #e2e8f0; }
+        td { padding: 12px; border: 1px solid #e2e8f0; font-size: 14px; color: #1e293b; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        .footer { text-align: center; color: #64748b; font-size: 13px; margin-top: 50px; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="report-container">
+        <div class="header">
+            <div class="logo">🌱 AgriFlow</div>
+            <div class="report-title">${title}</div>
+        </div>
+        <div class="meta">
+            <strong>Generated On:</strong> ${new Date().toLocaleString('en-IN')}<br>
+            <strong>Status:</strong> Official Report
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    ${tableHeaders.map(h => `<th>${h}</th>`).join('')}
+                </tr>
+            </thead>
+            <tbody>
+                ${tableRows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}
+            </tbody>
+        </table>
+        <div class="footer">
+            AgriFlow Management System &copy; ${new Date().getFullYear()}<br>
+            <small>This report is system generated.</small>
+        </div>
+    </div>
+</body>
+</html>`;
+
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${type}_${new Date().toISOString().split('T')[0]}.csv`;
+      link.download = `${type}_${new Date().toISOString().split('T')[0]}.html`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       toast.success(t('report_downloaded'));
     } catch (err) {
       console.error('Download failed:', err);
@@ -88,7 +138,7 @@ export default function Reports() {
     <div className="animate-fade-in">
       <div className="page-header">
         <div><h1 className="page-title">{t('reports')}</h1><p className="page-subtitle">{t("reports_desc")}</p></div>
-        <button onClick={() => downloadCSV('full_report')} className="btn-secondary flex items-center gap-2"><Download size={16} />{t("export_full_report")}</button>
+        <button onClick={() => downloadReport('full_report')} className="btn-secondary flex items-center gap-2"><Download size={16} />{t("export_full_report")}</button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -127,11 +177,11 @@ export default function Reports() {
           { id: 'transaction_ledger', title: t('transaction_ledger'), desc: t('transaction_ledger_desc'), icon: <ArrowRight size={18} /> },
           { id: 'warehouse_inventory_logs', title: t('warehouse_inventory_logs'), desc: t('warehouse_inventory_logs_desc'), icon: <Download size={18} /> },
         ].map(r => (
-          <div key={r.title} className="glass-card p-5 hover-lift cursor-pointer" onClick={() => downloadCSV(r.id)}>
+          <div key={r.title} className="glass-card p-5 hover-lift cursor-pointer" onClick={() => downloadReport(r.id)}>
             <div className="w-10 h-10 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center mb-4">{r.icon}</div>
             <h4 className="font-bold text-gray-800 mb-1">{r.title}</h4>
             <p className="text-xs text-gray-500 mb-4">{r.desc}</p>
-            <span className="text-sm font-semibold text-primary-600 flex items-center gap-1 group">{t("download_csv")} <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" /></span>
+            <span className="text-sm font-semibold text-primary-600 flex items-center gap-1 group">{t("download_report", "Download Report")} <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" /></span>
           </div>
         ))}
       </div>

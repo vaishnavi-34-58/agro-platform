@@ -168,13 +168,19 @@ router.get('/seeds', ...isFarmer, async (req, res) => {
 
 // POST /api/farmer/seed-purchase
 router.post('/seed-purchase', ...isFarmer, async (req, res) => {
-  const { seed_id, quantity_kg, payment_method, upi_id, transaction_id } = req.body;
+  const { seed_id, quantity_kg, payment_method, upi_id, transaction_id, warehouse_id } = req.body;
   try {
     const { rows: seedRows } = await db.query('SELECT * FROM seeds WHERE id = $1 AND is_active = TRUE', [seed_id]);
     const seed = seedRows[0];
     if (!seed) return res.status(404).json({ error: 'Seed not found' });
     if (parseFloat(seed.stock_kg) < quantity_kg) {
       return res.status(400).json({ error: `Insufficient stock. Available: ${seed.stock_kg} kg` });
+    }
+    
+    let warehouseName = 'the warehouse';
+    if (warehouse_id) {
+      const { rows: wRows } = await db.query('SELECT name FROM warehouses WHERE id = $1', [warehouse_id]);
+      if (wRows.length) warehouseName = wRows[0].name;
     }
 
     const total = parseFloat(seed.price_per_kg) * quantity_kg;
@@ -205,6 +211,17 @@ router.post('/seed-purchase', ...isFarmer, async (req, res) => {
          VALUES ('seed_purchase', $1, $2, $3, $4, $5, 'debit', 'completed', $6, $7)`,
         [purchaseId, req.user.id, total, upi_id, transaction_id, `Seed purchase: ${seed.name} ${quantity_kg}kg`, invoice]
       );
+    } else {
+      const { rows: managers } = await db.query(
+        "SELECT id FROM users WHERE role IN ('manager', 'super_admin') AND status = 'active'"
+      );
+      for (const m of managers) {
+        await db.query(
+          `INSERT INTO notifications (user_id, title, message, type, reference_type, reference_id)
+           VALUES ($1, 'Seed Purchase at Warehouse', $2, 'info', 'seed_purchase', $3)`,
+          [m.id, `${req.user.name} selected Pay at Warehouse for ${quantity_kg}kg of ${seed.name} at ${warehouseName}.`, purchaseId]
+        );
+      }
     }
 
     res.status(201).json({ id: purchaseId, invoice_number: invoice, total_amount: total, message: 'Purchase successful' });
@@ -230,22 +247,24 @@ router.get('/seed-purchases', ...isFarmer, async (req, res) => {
 
 // POST /api/farmer/grain-sale
 router.post('/grain-sale', ...isFarmer, async (req, res) => {
-  const { crop_id, grain_type, grade, raw_material_kg, wastage_kg, good_material_kg } = req.body;
+  const { grain_type, quantity_kg, warehouse_id } = req.body;
   try {
-    const { rows: rateRows } = await db.query(
-      'SELECT price_per_kg FROM market_rates WHERE crop_type = $1 AND grade = $2 ORDER BY effective_date DESC LIMIT 1',
-      [grain_type, grade]
-    );
-    const price_per_kg = rateRows.length > 0 ? parseFloat(rateRows[0].price_per_kg) : 0;
-    const total = price_per_kg * good_material_kg;
-
     const { rows } = await db.query(
       `INSERT INTO grain_sales
-         (farmer_id, crop_id, grain_type, grade, raw_material_kg, wastage_kg, good_material_kg, price_per_kg, total_amount)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [req.user.id, crop_id, grain_type, grade, raw_material_kg, wastage_kg, good_material_kg, price_per_kg, total]
+         (farmer_id, grain_type, grade, raw_material_kg, status)
+       VALUES ($1, $2, 'A', $3, 'pending') RETURNING id`,
+      [req.user.id, grain_type, quantity_kg]
     );
-    res.status(201).json({ id: rows[0].id, estimated_amount: total, message: 'Grain sale submitted for approval' });
+    const saleId = rows[0].id;
+
+    await db.query(
+      `INSERT INTO booking_slots
+         (farmer_id, grain_sale_id, booking_date, delivery_address, grain_type, warehouse_id, quantity_kg)
+       VALUES ($1, $2, 'TBD', 'TBD', $3, $4, $5)`,
+      [req.user.id, saleId, grain_type, warehouse_id, quantity_kg]
+    );
+
+    res.status(201).json({ id: saleId, estimated_amount: 0, message: 'Grain sale request submitted. Manager will assign a slot.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
