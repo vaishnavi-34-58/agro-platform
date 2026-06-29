@@ -101,7 +101,9 @@ export default function AdminLayout() {
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <div className="flex-1">
-            <span className="text-gray-600 text-sm font-medium">Manager Dashboard</span>
+            <span className="text-gray-600 text-sm font-medium">
+              {navItems.find(item => location.pathname === item.to || (item.to !== basePath && location.pathname.startsWith(item.to)))?.label || 'Manager Dashboard'}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">

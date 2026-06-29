@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -21,6 +21,7 @@ export default function FarmerLayout() {
   const { t, i18n } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem('sidebar_open') !== 'false');
   const [showLang, setShowLang] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -144,7 +145,7 @@ export default function FarmerLayout() {
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <h2 className="text-gray-700 font-semibold text-base flex-1 hidden sm:block">
-            {t('app_name')} — {t('farm_overview')}
+            {t('app_name')} — {navItems.find(item => item.to === location.pathname)?.label || t('farm_overview')}
           </h2>
 
           <div className="flex items-center gap-2 ml-auto">
