@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { LayoutDashboard, Users, UserCheck, FileText, LogOut, Menu, X, Globe, Crown, Leaf } from 'lucide-react';
@@ -14,7 +14,6 @@ export default function SuperAdminLayout() {
   const { t, i18n } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showLang, setShowLang] = useState(false);
 
@@ -76,9 +75,7 @@ export default function SuperAdminLayout() {
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <div className="flex-1">
-            <span className="text-gray-600 text-sm font-medium">
-              {navItems.find(item => location.pathname === item.to || (item.to !== '/admin/dashboard' && location.pathname.startsWith(item.to)))?.label || 'Super Admin Control Panel'}
-            </span>
+            <span className="text-gray-600 text-sm font-medium">Super Admin Control Panel</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">

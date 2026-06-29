@@ -781,6 +781,38 @@ router.patch('/grain-sales/:id', ...isAdmin, async (req, res) => {
   }
 });
 
+// PATCH /api/admin/grain-sales/:id/pay
+router.patch('/grain-sales/:id/pay', ...isAdmin, async (req, res) => {
+  try {
+    const { rows: saleRows } = await db.query('SELECT * FROM grain_sales WHERE id = $1', [req.params.id]);
+    if (saleRows.length === 0) return res.status(404).json({ error: 'Sale not found' });
+    const sale = saleRows[0];
+
+    const { rows: txRows } = await db.query(
+      "SELECT * FROM transactions WHERE reference_type = 'grain_sale' AND reference_id = $1 AND status = 'pending'",
+      [req.params.id]
+    );
+    if (txRows.length === 0) return res.status(404).json({ error: 'Pending transaction not found for this sale' });
+    const tx = txRows[0];
+
+    await db.query("UPDATE transactions SET status = 'completed' WHERE id = $1", [tx.id]);
+    await db.query("UPDATE grain_sales SET status = 'paid', updated_at = now() WHERE id = $1", [req.params.id]);
+    
+    await db.query(
+      `INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, 'success')`,
+      [tx.farmer_id, 'Payment Received', `A payment of ₹${parseFloat(tx.amount).toFixed(2)} for ${tx.description} has been processed.`]
+    );
+    await db.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES ($1, $2, 'transaction', $3, $4, $5)`,
+      [req.user.id, 'Process Payment', tx.id, `Paid ₹${parseFloat(tx.amount).toFixed(2)} for grain sale ${req.params.id}`, req.ip || req.connection?.remoteAddress]
+    );
+
+    res.json({ message: 'Farmer paid successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/admin/reports/monthly
 router.get('/reports/monthly', ...isAdmin, async (req, res) => {
   const { month } = req.query;
