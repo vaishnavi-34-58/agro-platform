@@ -81,7 +81,7 @@ export default function AppRouter() {
         <Route path="visits" element={<FarmVisits />} />
         <Route path="market-rates" element={<MarketRates />} />
         <Route path="grain-sales" element={<ProtectedRoute allowedRoles={['super_admin']}><GrainSalesAdmin /></ProtectedRoute>} />
-        <Route path="event-logs" element={<EventLogs />} />
+        <Route path="event-logs" element={<ProtectedRoute allowedRoles={['super_admin']}><EventLogs /></ProtectedRoute>} />
         <Route path="profile" element={<ManagerProfile />} />
       </Route>
 
