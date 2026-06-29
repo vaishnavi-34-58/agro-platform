@@ -22,27 +22,31 @@ app.use(express.urlencoded({ extended: true }));
 // Skip health checks from rate limiting
 const skipCheck = createSkipCheck(['/api/health']);
 
-// Global rate limiter for all API routes
-app.use('/api/', skipCheck, limiters.global);
-
-// Login-specific rate limiting (very strict - prevents brute force)
-app.use('/api/auth/login', skipCheck, limiters.login);
+// Global rate limiter for all API routes (skipping login and register per request)
+const globalLimiterWithExclusions = (req, res, next) => {
+  const path = req.originalUrl.split('?')[0].replace(/\/$/, '');
+  if (path === '/api/auth/login' || path === '/api/auth/register') {
+    return next();
+  }
+  return limiters.global(req, res, next);
+};
+app.use('/api/', skipCheck, globalLimiterWithExclusions);
 
 // OTP-specific rate limiting (very strict)
 app.use('/api/auth/send-otp', skipCheck, limiters.otp);
 app.use('/api/auth/forgot-password/send-otp', skipCheck, limiters.otp);
 
-// Custom middleware for auth endpoints that excludes login
-const authLimiterWithoutLogin = (req, res, next) => {
-  // Skip login endpoint - it has its own stricter limiter
-  if (req.path === '/login') {
+// Custom middleware for auth endpoints that excludes login and register
+const authLimiterExclusions = (req, res, next) => {
+  // Skip login and register endpoints
+  if (req.path === '/login' || req.path === '/register') {
     return next();
   }
   // Apply auth limiter to all other auth endpoints
   return limiters.auth(req, res, next);
 };
 
-app.use('/api/auth/', skipCheck, authLimiterWithoutLogin);
+app.use('/api/auth/', skipCheck, authLimiterExclusions);
 
 // Upload rate limiting (resource-intensive)
 app.use('/api/upload', skipCheck, limiters.upload);
