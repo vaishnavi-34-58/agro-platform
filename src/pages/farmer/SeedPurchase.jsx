@@ -159,7 +159,11 @@ export default function SeedPurchase() {
 </html>`;
     const blob = new Blob([htmlContent], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `Invoice_${p.invoice_number}.html`; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = `Invoice_${p.invoice_number}.html`; 
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   // Derive filter data

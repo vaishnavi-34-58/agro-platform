@@ -157,7 +157,11 @@ export default function TransactionHistory() {
 </html>`;
     const blob = new Blob([htmlContent], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `Invoice_${tx.invoice_number}.html`; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = `Invoice_${tx.invoice_number}.html`; 
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-10 h-10 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" /></div>;
