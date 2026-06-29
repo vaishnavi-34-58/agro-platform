@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api/axios';
-import { Calendar, Search, CheckCircle, X, MapPin, Eye } from 'lucide-react';
+import { Calendar, Search, CheckCircle, X, MapPin, Eye, DollarSign } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function BookingSlots() {
@@ -26,6 +26,21 @@ export default function BookingSlots() {
       toast.success(t('slot') + ' ' + status);
       queryClient.invalidateQueries({ queryKey: ['admin-booking-slots'] });
     } catch { toast.error(t('action_failed')); }
+  };
+
+  const handlePayFarmer = async (saleId) => {
+    if (!saleId) return toast.error('No sale associated with this booking');
+    try {
+      await api.patch(`/admin/grain-sales/${saleId}/pay`);
+      toast.success(t('payment_successful', 'Farmer paid successfully'));
+      // Wait a moment and then maybe invalidate grain sales if we had it, but here just show toast
+    } catch (err) {
+      if (err.response?.status === 404) {
+        toast.error('Payment already processed or transaction not found');
+      } else {
+        toast.error(err.response?.data?.error || t('action_failed'));
+      }
+    }
   };
 
   const filtered = slots.filter(s => {
@@ -82,6 +97,11 @@ export default function BookingSlots() {
                           )}
                           {s.status === 'confirmed' && (
                             <button onClick={() => handleAction(s.id, 'completed')} className="btn-primary btn-sm">{t("mark_complete")}</button>
+                          )}
+                          {s.status === 'completed' && s.grain_sale_id && (
+                            <button onClick={() => handlePayFarmer(s.grain_sale_id)} className="btn-sm bg-green-600 hover:bg-green-700 text-white flex items-center gap-1 ml-2" title="Pay Farmer">
+                              <DollarSign size={14} /> {t('pay')}
+                            </button>
                           )}
                         </div>
                       </td>

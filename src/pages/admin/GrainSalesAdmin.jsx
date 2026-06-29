@@ -37,6 +37,16 @@ export default function GrainSalesAdmin() {
     finally { setSaving(false); }
   };
 
+  const handlePayFarmer = async (id) => {
+    try {
+      await api.patch(`/admin/grain-sales/${id}/pay`);
+      toast.success(t('payment_successful', 'Farmer paid successfully'));
+      queryClient.invalidateQueries({ queryKey: ['admin-grain-sales'] });
+    } catch (err) {
+      toast.error(err.response?.data?.error || t('action_failed'));
+    }
+  };
+
   const filtered = sales.filter(s => {
     const matchFilter = filter === 'all' || s.status === filter;
     const matchSearch = !search || s.farmer_name?.toLowerCase().includes(search.toLowerCase()) || s.grain_type?.toLowerCase().includes(search.toLowerCase());
@@ -84,12 +94,19 @@ export default function GrainSalesAdmin() {
                       <td><span className={`badge ${statusBadge(s.status)}`}>{s.status}</span></td>
                       <td className="text-xs">{new Date(s.created_at * 1000).toLocaleDateString('en-IN')}</td>
                       <td>
-                        {s.status === 'pending' && (
-                          <button onClick={() => openApprove(s)} className="btn-primary btn-sm flex items-center gap-1">{t("review")}</button>
-                        )}
-                        {s.status === 'approved' && (
-                          <span className="text-xs text-gray-400 italic">{t("waiting_for_booking")}</span>
-                        )}
+                        <div className="flex gap-2 items-center">
+                          {s.status === 'pending' && (
+                            <button onClick={() => openApprove(s)} className="btn-primary btn-sm flex items-center gap-1">{t("review")}</button>
+                          )}
+                          {s.status === 'approved' && (
+                            <>
+                              <span className="text-xs text-gray-400 italic mr-2">{t("waiting_for_booking")}</span>
+                              <button onClick={() => handlePayFarmer(s.id)} className="btn-sm bg-green-600 hover:bg-green-700 text-white flex items-center gap-1">
+                                <DollarSign size={14} /> Pay Farmer
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
