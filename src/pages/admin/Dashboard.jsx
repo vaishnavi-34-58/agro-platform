@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api/axios';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Users, Sprout, IndianRupee, Warehouse, Clock, TrendingUp, AlertCircle } from 'lucide-react';
+
+import { Users, Sprout, Warehouse, TrendingUp, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -44,9 +44,6 @@ export default function AdminDashboard() {
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-10 h-10 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" /></div>;
 
-  const monthlyData = (data?.monthlySales || []).reverse().map(m => ({
-    month: m.month?.slice(0, 7) || '', revenue: m.total || 0
-  }));
 
   const totalWh = data?.warehouses?.reduce((s, w) => s + w.total_capacity_kg, 0) || 1;
   const usedWh = data?.warehouses?.reduce((s, w) => s + w.current_load_kg, 0) || 0;
@@ -59,40 +56,17 @@ export default function AdminDashboard() {
         <p className="page-subtitle">{t("system_overview_desc")}</p>
       </div>
 
-      {/* 9 KPI Stats Grid */}
+      {/* KPI Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard icon={<Users size={22} />} value={data?.totalFarmers || 0} label={t("total_farmers")} color="bg-blue-500" sub={`${data?.activeFarmers || 0}  ${t("active_farmers")}`} />
         <StatCard icon={<Sprout size={22} />} value={data?.activeCrops || 0} label={t("active_crop_cycles")} color="bg-agro-primary" />
         <StatCard icon={<TrendingUp size={22} />} value={`${((data?.procurementMTD || 0)/1000).toFixed(1)}T`} label={t("procurement_mtd")} color="bg-agro-brown" />
         <StatCard icon={<Warehouse size={22} />} value={`${((data?.warehouseInv || 0)/1000).toFixed(1)}T`} label={t("warehouse_inv")} color="bg-gray-600" />
-        <StatCard icon={<IndianRupee size={22} />} value={`₹${((data?.revenueMTD || 0)/1000).toFixed(0)}K`} label={t("total_revenue_mtd")} color="bg-agro-gold" />
-        <StatCard icon={<IndianRupee size={22} />} value={`₹${((data?.profitMTD || 0)/1000).toFixed(0)}K`} label={t("net_profit_mtd")} color="bg-agro-success" />
-        <StatCard icon={<Clock size={22} />} value={data?.pendingPayments || 0} label={t("pending_payments")} color="bg-agro-warning" />
         <StatCard icon={<Users size={22} />} value={data?.visitorToday || 0} label={t("visitors_today")} color="bg-purple-500" />
       </div>
       
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        {/* Revenue Chart */}
-        <div className="section-card lg:col-span-2">
-          <h3 className="section-title"><TrendingUp size={18} className="text-primary-600" />{t("monthly_revenue")}</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={monthlyData}>
-              <defs>
-                <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `₹${(v / 1000).toFixed(0)}K`} />
-              <Tooltip formatter={v => [`₹${v.toLocaleString('en-IN')}`, 'Revenue']} />
-              <Area type="monotone" dataKey="revenue" stroke="#16a34a" strokeWidth={2} fill="url(#revGrad)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-
         {/* Warehouse Status */}
         <div className="section-card">
           <h3 className="section-title"><Warehouse size={18} className="text-blue-500" />{t("warehouse_capacity")}</h3>
