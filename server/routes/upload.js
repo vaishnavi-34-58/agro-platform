@@ -3,6 +3,7 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { validate, validationSchemas, validateFileUpload } = require('../middleware/validation');
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 
@@ -14,7 +15,7 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 // POST /api/upload
 // Accepts JSON body: { image: "data:image/png;base64,iVBORw0K..." }
 // Returns: { url: "/api/uploads/abc123.png" }
-router.post('/', async (req, res) => {
+router.post('/', validate(validationSchemas.upload), validateFileUpload, async (req, res) => {
   try {
     const { image } = req.body;
     if (!image) return res.status(400).json({ error: 'No image provided' });

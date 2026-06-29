@@ -2,9 +2,9 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 const path = require('path');
 const { startScheduledJobs } = require('./utils/scheduledJobs');
+const { limiters, createMethodBasedLimiter, createSkipCheck } = require('./middleware/rateLimiter');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -19,10 +19,36 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, message: { error: 'Too many requests' } });
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Too many login attempts' } });
-app.use('/api/', limiter);
-app.use('/api/auth/login', authLimiter);
+// Skip health checks from rate limiting
+const skipCheck = createSkipCheck(['/api/health']);
+
+// Global rate limiter for all API routes
+app.use('/api/', skipCheck, limiters.global);
+
+// Login-specific rate limiting (very strict - prevents brute force)
+app.use('/api/auth/login', skipCheck, limiters.login);
+
+// OTP-specific rate limiting (very strict)
+app.use('/api/auth/send-otp', skipCheck, limiters.otp);
+app.use('/api/auth/forgot-password/send-otp', skipCheck, limiters.otp);
+
+// Custom middleware for auth endpoints that excludes login
+const authLimiterWithoutLogin = (req, res, next) => {
+  // Skip login endpoint - it has its own stricter limiter
+  if (req.path === '/login') {
+    return next();
+  }
+  // Apply auth limiter to all other auth endpoints
+  return limiters.auth(req, res, next);
+};
+
+app.use('/api/auth/', skipCheck, authLimiterWithoutLogin);
+
+// Upload rate limiting (resource-intensive)
+app.use('/api/upload', skipCheck, limiters.upload);
+
+// Admin routes with higher limits
+app.use('/api/admin', skipCheck, limiters.admin);
 
 // Serve uploaded files statically
 app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));

@@ -84,7 +84,15 @@ export default function Register() {
       });
       toast.success('Registration submitted! Admin will approve your account.');
       navigate('/login');
-    } catch (err) { toast.error(err.response?.data?.error || 'Registration failed'); }
+        } catch (err) {
+      if (err.response?.data?.details && Array.isArray(err.response.data.details)) {
+        const fieldErrors = err.response.data.details.map(d => `${d.field}: ${d.message}`).join(', ');
+        toast.error(`Validation failed: ${fieldErrors}`);
+      } else {
+        toast.error(err.response?.data?.error || 'Registration failed');
+      }
+    }
+
     finally { setLoading(false); }
   };
 

@@ -56,7 +56,7 @@ export default function SeedPurchase() {
     if (!form.quantity_kg || parseFloat(form.quantity_kg) <= 0) return toast.error(t('enter_valid_quantity'));
     if (form.payment_method === 'upi') {
       if (!/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(form.upi_id)) return toast.error(t('invalid_upi_id') || 'Invalid UPI ID format');
-      if (!/^\d{12}$/.test(form.transaction_id)) return toast.error(t('invalid_transaction_id') || 'Transaction ID must be exactly 12 digits');
+
     }
     setSaving(true);
     try {
@@ -72,7 +72,15 @@ export default function SeedPurchase() {
       setShowModal(false);
       queryClient.invalidateQueries({ queryKey: ['farmer-seeds'] });
       queryClient.invalidateQueries({ queryKey: ['farmer-seed-purchases'] });
-    } catch (err) { toast.error(err.response?.data?.error || 'Purchase failed'); }
+    } catch (err) {
+      // Show detailed validation errors if available
+      if (err.response?.data?.details && Array.isArray(err.response.data.details)) {
+        const fieldErrors = err.response.data.details.map(d => `${d.field}: ${d.message}`).join(', ');
+        toast.error(`Validation failed: ${fieldErrors}`);
+      } else {
+        toast.error(err.response?.data?.error || 'Purchase failed');
+      }
+    }
     finally { setSaving(false); }
   };
 
@@ -417,11 +425,7 @@ export default function SeedPurchase() {
                     <input value={form.upi_id} onChange={e => setForm(f => ({ ...f, upi_id: e.target.value }))}
                       className="input-field" placeholder="farmer@upi" required />
                   </div>
-                  <div>
-                    <label className="label">{t('transaction_id')} *</label>
-                    <input value={form.transaction_id} onChange={e => setForm(f => ({ ...f, transaction_id: e.target.value.replace(/\D/g, '') }))}
-                      className="input-field" placeholder="UPI Transaction ID (12 digits)" required maxLength={12} pattern="\d{12}" />
-                  </div>
+                  
                 </>
               )}
             </form>

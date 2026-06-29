@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
 const { authMiddleware, requireRole } = require('../middleware/auth');
+const { validate, validationSchemas, sanitizeInput } = require('../middleware/validation');
 
 const isAdmin = [authMiddleware, requireRole('manager', 'super_admin')];
 
@@ -148,7 +149,7 @@ router.get('/farmers/:id', ...isAdmin, async (req, res) => {
 });
 
 // PATCH /api/admin/farmers/:id/approve
-router.patch('/farmers/:id/approve', ...isAdmin, async (req, res) => {
+router.patch('/farmers/:id/approve', ...isAdmin, validate(validationSchemas.updateFarmerStatus), sanitizeInput, async (req, res) => {
   const { status, notes } = req.body;
   if (!['active', 'rejected'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
   try {
@@ -196,7 +197,7 @@ router.get('/bank-requests', authMiddleware, requireRole('super_admin'), async (
 });
 
 // PATCH /api/admin/bank-requests/:id
-router.patch('/bank-requests/:id', authMiddleware, requireRole('super_admin'), async (req, res) => {
+router.patch('/bank-requests/:id', authMiddleware, requireRole('super_admin'), validate(validationSchemas.updateBankRequest), sanitizeInput, async (req, res) => {
   const { status, notes } = req.body;
   try {
     const { rows: reqRows } = await db.query('SELECT * FROM bank_change_requests WHERE id = $1', [req.params.id]);
@@ -250,7 +251,7 @@ router.get('/seeds', ...isAdmin, async (req, res) => {
 });
 
 // POST /api/admin/seeds
-router.post('/seeds', ...isAdmin, async (req, res) => {
+router.post('/seeds', ...isAdmin, validate(validationSchemas.createSeed), sanitizeInput, async (req, res) => {
   const { name, variety, price_per_kg, stock_kg, description } = req.body;
   try {
     const { rows } = await db.query(
@@ -268,7 +269,7 @@ router.post('/seeds', ...isAdmin, async (req, res) => {
 });
 
 // PATCH /api/admin/seed-purchases/:id
-router.patch('/seed-purchases/:id', ...isAdmin, async (req, res) => {
+router.patch('/seed-purchases/:id', ...isAdmin, validate(validationSchemas.updateSeedPurchase), sanitizeInput, async (req, res) => {
   const { status } = req.body;
   if (!['approved', 'rejected'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
   try {
@@ -308,7 +309,7 @@ router.patch('/seed-purchases/:id', ...isAdmin, async (req, res) => {
 });
 
 // PATCH /api/admin/seeds/:id
-router.patch('/seeds/:id', ...isAdmin, async (req, res) => {
+router.patch('/seeds/:id', ...isAdmin, validate(validationSchemas.updateSeed), sanitizeInput, async (req, res) => {
   const { name, variety, price_per_kg, stock_kg, description, is_active } = req.body;
   const updatedPrice = req.user.role === 'super_admin' ? price_per_kg : null;
   try {
@@ -351,7 +352,7 @@ router.get('/warehouses', ...isAdmin, async (req, res) => {
 });
 
 // POST /api/admin/warehouses
-router.post('/warehouses', ...isAdmin, async (req, res) => {
+router.post('/warehouses', ...isAdmin, validate(validationSchemas.createWarehouse), sanitizeInput, async (req, res) => {
   const { name, address, total_capacity_kg } = req.body;
   try {
     const { rows } = await db.query(
@@ -365,7 +366,7 @@ router.post('/warehouses', ...isAdmin, async (req, res) => {
 });
 
 // POST /api/admin/warehouses/:id/inventory
-router.post('/warehouses/:id/inventory', ...isAdmin, async (req, res) => {
+router.post('/warehouses/:id/inventory', ...isAdmin, validate(validationSchemas.addWarehouseInventory), sanitizeInput, async (req, res) => {
   const { grain_type, quantity_kg } = req.body;
   const warehouseId = req.params.id;
   const qty = parseFloat(quantity_kg);
@@ -420,7 +421,7 @@ router.get('/warehouse-slots', ...isAdmin, async (req, res) => {
 });
 
 // POST /api/admin/warehouse-slots
-router.post('/warehouse-slots', ...isAdmin, async (req, res) => {
+router.post('/warehouse-slots', ...isAdmin, validate(validationSchemas.createWarehouseSlot), sanitizeInput, async (req, res) => {
   const { warehouse_id, slot_date, start_time, end_time, total_capacity_kg } = req.body;
   if (!warehouse_id || !slot_date || !start_time || !end_time || !total_capacity_kg) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -438,7 +439,7 @@ router.post('/warehouse-slots', ...isAdmin, async (req, res) => {
 });
 
 // PATCH /api/admin/warehouse-slots/:id
-router.patch('/warehouse-slots/:id', ...isAdmin, async (req, res) => {
+router.patch('/warehouse-slots/:id', ...isAdmin, validate(validationSchemas.updateWarehouseSlot), sanitizeInput, async (req, res) => {
   const { status, total_capacity_kg } = req.body;
   try {
     const { rows } = await db.query('SELECT * FROM warehouse_slots WHERE id = $1', [req.params.id]);
@@ -496,7 +497,7 @@ router.get('/active-crops', ...isAdmin, async (req, res) => {
 });
 
 // POST /api/admin/visits
-router.post('/visits', ...isAdmin, async (req, res) => {
+router.post('/visits', ...isAdmin, validate(validationSchemas.createFarmVisit), sanitizeInput, async (req, res) => {
   const { crop_id, farmer_id, visit_month, scheduled_date } = req.body;
   try {
     const { rows } = await db.query(
@@ -519,7 +520,7 @@ router.post('/visits', ...isAdmin, async (req, res) => {
 });
 
 // PATCH /api/admin/visits/:id
-router.patch('/visits/:id', ...isAdmin, async (req, res) => {
+router.patch('/visits/:id', ...isAdmin, validate(validationSchemas.updateFarmVisit), sanitizeInput, async (req, res) => {
   const { status, actual_date, verified_acres, report, scheduled_date } = req.body;
   try {
     await db.query(
@@ -588,7 +589,7 @@ router.get('/market-rates', ...isAdmin, async (req, res) => {
 });
 
 // POST /api/admin/market-rates
-router.post('/market-rates', ...isAdmin, async (req, res) => {
+router.post('/market-rates', ...isAdmin, validate(validationSchemas.setMarketRate), sanitizeInput, async (req, res) => {
   const { crop_type, grade, price_per_kg, effective_date } = req.body;
   try {
     const { rows } = await db.query(
@@ -621,7 +622,7 @@ router.get('/transactions', ...isAdmin, async (req, res) => {
 });
 
 // PATCH /api/admin/transactions/:id/pay
-router.patch('/transactions/:id/pay', ...isAdmin, async (req, res) => {
+router.patch('/transactions/:id/pay', ...isAdmin, validate(validationSchemas.processPayment), sanitizeInput, async (req, res) => {
   try {
     const { rows } = await db.query(
       "SELECT * FROM transactions WHERE id = $1 AND status = 'pending' AND direction = 'credit'",
@@ -836,7 +837,7 @@ router.get('/managers', authMiddleware, requireRole('super_admin'), async (req, 
 });
 
 // POST /api/admin/managers (super admin only)
-router.post('/managers', authMiddleware, requireRole('super_admin'), async (req, res) => {
+router.post('/managers', authMiddleware, requireRole('super_admin'), validate(validationSchemas.createManager), sanitizeInput, async (req, res) => {
   const bcrypt = require('bcryptjs');
   const { name, email, phone, password, department } = req.body;
   if (!name || !phone || !password) return res.status(400).json({ error: 'Name, phone and password required' });
@@ -863,7 +864,7 @@ router.post('/managers', authMiddleware, requireRole('super_admin'), async (req,
 });
 
 // PATCH /api/admin/managers/:id
-router.patch('/managers/:id', authMiddleware, requireRole('super_admin'), async (req, res) => {
+router.patch('/managers/:id', authMiddleware, requireRole('super_admin'), validate(validationSchemas.updateManager), sanitizeInput, async (req, res) => {
   const { status } = req.body;
   try {
     await db.query("UPDATE users SET status = $1 WHERE id = $2 AND role = 'manager'", [status, req.params.id]);

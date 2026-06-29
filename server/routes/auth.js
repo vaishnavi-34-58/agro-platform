@@ -4,9 +4,10 @@ const bcrypt = require('bcryptjs');
 const db = require('../database/db');
 const { generateToken, authMiddleware, requireRole } = require('../middleware/auth');
 const { generateOTP, storeOTP, verifyOTP, sendOTP } = require('../utils/otp');
+const { validate, validationSchemas, sanitizeInput } = require('../middleware/validation');
 
 // POST /api/auth/send-otp
-router.post('/send-otp', (req, res) => {
+router.post('/send-otp', validate(validationSchemas.sendOTP), sanitizeInput, (req, res) => {
   const { phone } = req.body;
   if (!phone || !/^\d{10}$/.test(phone)) return res.status(400).json({ error: 'Valid 10-digit phone required' });
   const otp = generateOTP();
@@ -16,7 +17,7 @@ router.post('/send-otp', (req, res) => {
 });
 
 // POST /api/auth/verify-otp
-router.post('/verify-otp', (req, res) => {
+router.post('/verify-otp', validate(validationSchemas.verifyOTP), sanitizeInput, (req, res) => {
   const { phone, otp } = req.body;
   if (!phone || !otp) return res.status(400).json({ error: 'Phone and OTP required' });
   const otpResult = verifyOTP(phone, otp, true); // keep=true so it can be verified again during registration
@@ -25,7 +26,7 @@ router.post('/verify-otp', (req, res) => {
 });
 
 // POST /api/auth/register (farmer only)
-router.post('/register', async (req, res) => {
+router.post('/register', validate(validationSchemas.register), sanitizeInput, async (req, res) => {
   const { name, phone, email, password, otp, address, acres_of_land, crop_address } = req.body;
   if (!name || !phone || !password || !otp) return res.status(400).json({ error: 'Missing required fields' });
 
@@ -70,7 +71,7 @@ router.post('/register', async (req, res) => {
 });
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', validate(validationSchemas.login), sanitizeInput, async (req, res) => {
   const { phone, password, role } = req.body;
   if (!phone || !password) return res.status(400).json({ error: 'Phone and password required' });
 
@@ -114,7 +115,7 @@ router.post('/login', async (req, res) => {
 });
 
 // POST /api/auth/change-password
-router.post('/change-password', async (req, res) => {
+router.post('/change-password', validate(validationSchemas.changePassword), sanitizeInput, async (req, res) => {
   const { phone, old_password, new_password } = req.body;
   try {
     const { rows } = await db.query('SELECT * FROM users WHERE phone = $1', [phone]);
@@ -130,7 +131,7 @@ router.post('/change-password', async (req, res) => {
 });
 
 // POST /api/auth/forgot-password/send-otp
-router.post('/forgot-password/send-otp', async (req, res) => {
+router.post('/forgot-password/send-otp', validate(validationSchemas.forgotPasswordSendOTP), sanitizeInput, async (req, res) => {
   const { phone } = req.body;
   try {
     const { rows } = await db.query('SELECT id FROM users WHERE phone = $1', [phone]);
@@ -145,7 +146,7 @@ router.post('/forgot-password/send-otp', async (req, res) => {
 });
 
 // POST /api/auth/forgot-password/reset
-router.post('/forgot-password/reset', async (req, res) => {
+router.post('/forgot-password/reset', validate(validationSchemas.forgotPasswordReset), sanitizeInput, async (req, res) => {
   const { phone, otp, new_password } = req.body;
   const result = verifyOTP('reset_' + phone, otp);
   if (!result.valid) return res.status(400).json({ error: result.reason });
@@ -159,7 +160,7 @@ router.post('/forgot-password/reset', async (req, res) => {
 });
 
 // PATCH /api/auth/update-profile  (manager / super_admin only)
-router.patch('/update-profile', authMiddleware, requireRole('manager', 'super_admin'), async (req, res) => {
+router.patch('/update-profile', authMiddleware, requireRole('manager', 'super_admin'), validate(validationSchemas.updateProfile), sanitizeInput, async (req, res) => {
   const { name, email } = req.body;
   const userId = parseInt(req.user.id, 10); // ensure integer for pg BIGINT binding
 

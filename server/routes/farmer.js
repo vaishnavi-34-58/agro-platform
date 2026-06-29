@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
 const { authMiddleware, requireRole } = require('../middleware/auth');
+const { validate, validationSchemas, sanitizeInput } = require('../middleware/validation');
 
 const isFarmer = [authMiddleware, requireRole('farmer')];
 
@@ -16,7 +17,7 @@ router.get('/profile', ...isFarmer, async (req, res) => {
 });
 
 // PATCH /api/farmer/profile
-router.patch('/profile', ...isFarmer, async (req, res) => {
+router.patch('/profile', ...isFarmer, validate(validationSchemas.updateFarmerProfile), sanitizeInput, async (req, res) => {
   const {
     name, email, address, acres_of_land, crop_address,
     soil_type, irrigation_type, primary_crop, secondary_crop,
@@ -54,7 +55,7 @@ router.patch('/profile', ...isFarmer, async (req, res) => {
 });
 
 // POST /api/farmer/bank-change-request
-router.post('/bank-change-request', ...isFarmer, async (req, res) => {
+router.post('/bank-change-request', ...isFarmer, validate(validationSchemas.bankChangeRequest), sanitizeInput, async (req, res) => {
   const { bank_name, account_number, ifsc_code, upi_id } = req.body;
   try {
     const { rows } = await db.query(
@@ -138,7 +139,7 @@ router.get('/crops', ...isFarmer, async (req, res) => {
 });
 
 // POST /api/farmer/crops
-router.post('/crops', ...isFarmer, async (req, res) => {
+router.post('/crops', ...isFarmer, validate(validationSchemas.createCrop), sanitizeInput, async (req, res) => {
   const { crop_type, acres, sowing_date } = req.body;
   if (!crop_type || !acres || !sowing_date) return res.status(400).json({ error: 'All fields required' });
   try {
@@ -167,7 +168,7 @@ router.get('/seeds', ...isFarmer, async (req, res) => {
 });
 
 // POST /api/farmer/seed-purchase
-router.post('/seed-purchase', ...isFarmer, async (req, res) => {
+router.post('/seed-purchase', ...isFarmer, validate(validationSchemas.seedPurchase), sanitizeInput, async (req, res) => {
   const { seed_id, quantity_kg, payment_method, upi_id, transaction_id, warehouse_id } = req.body;
   try {
     const { rows: seedRows } = await db.query('SELECT * FROM seeds WHERE id = $1 AND is_active = TRUE', [seed_id]);
@@ -246,7 +247,7 @@ router.get('/seed-purchases', ...isFarmer, async (req, res) => {
 });
 
 // POST /api/farmer/grain-sale
-router.post('/grain-sale', ...isFarmer, async (req, res) => {
+router.post('/grain-sale', ...isFarmer, validate(validationSchemas.grainSale), sanitizeInput, async (req, res) => {
   const { grain_type, quantity_kg, warehouse_id } = req.body;
   try {
     const { rows } = await db.query(
@@ -318,7 +319,7 @@ router.get('/warehouse-slots', ...isFarmer, async (req, res) => {
 });
 
 // POST /api/farmer/booking-slot
-router.post('/booking-slot', ...isFarmer, async (req, res) => {
+router.post('/booking-slot', ...isFarmer, validate(validationSchemas.bookingSlot), sanitizeInput, async (req, res) => {
   const { grain_sale_id, booking_date, delivery_address, grain_type, warehouse_id, quantity_kg, warehouse_slot_id } = req.body;
   try {
     if (!warehouse_slot_id) return res.status(400).json({ error: 'Please select a specific time slot.' });
@@ -384,7 +385,7 @@ router.get('/booking-slots', ...isFarmer, async (req, res) => {
 router.get('/transactions', ...isFarmer, async (req, res) => {
   try {
     const { rows } = await db.query(
-      'SELECT * FROM transactions WHERE farmer_id = $1 ORDER BY created_at DESC', [req.user.id]
+      'SELECT DISTINCT * FROM transactions WHERE farmer_id = $1 ORDER BY created_at DESC', [req.user.id]
     );
     res.json(rows);
   } catch (err) {
