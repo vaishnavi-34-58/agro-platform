@@ -168,8 +168,8 @@ router.patch('/farmers/:id/approve', ...isAdmin, validate(validationSchemas.upda
       ]
     );
     await db.query(
-      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'farmer', $3, $4)`,
-      [req.user.id, status === 'active' ? 'Confirm Registration' : 'Reject Registration', req.params.id, status === 'active' ? 'Approved farmer registration' : `Rejected farmer registration. ${notes || ''}`]
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES ($1, $2, 'farmer', $3, $4, $5)`,
+      [req.user.id, status === 'active' ? 'Confirm Registration' : 'Reject Registration', req.params.id, status === 'active' ? 'Approved farmer registration' : `Rejected farmer registration. ${notes || ''}`, req.ip || req.connection?.remoteAddress]
     );
     // Mark notification as read globally
     await db.query(
@@ -226,8 +226,8 @@ router.patch('/bank-requests/:id', authMiddleware, requireRole('super_admin'), v
        status === 'approved' ? 'success' : 'error']
     );
     await db.query(
-      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'bank_request', $3, $4)`,
-      [req.user.id, status === 'approved' ? 'Approve Bank Details' : 'Reject Bank Details', req.params.id, `Manager ${status} bank detail change for farmer ${req_rec.farmer_id}`]
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES ($1, $2, 'bank_request', $3, $4, $5)`,
+      [req.user.id, status === 'approved' ? 'Approve Bank Details' : 'Reject Bank Details', req.params.id, `Manager ${status} bank detail change for farmer ${req_rec.farmer_id}`, req.ip || req.connection?.remoteAddress]
     );
     // Mark notification as read globally
     await db.query(
@@ -259,8 +259,8 @@ router.post('/seeds', ...isAdmin, validate(validationSchemas.createSeed), saniti
       [name, variety, price_per_kg, stock_kg, description]
     );
     await db.query(
-      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'seed', $3, $4)`,
-      [req.user.id, 'Add Seed', rows[0].id, `Added seed: ${name} (${variety}), ₹${price_per_kg}/kg, stock: ${stock_kg}kg`]
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES ($1, $2, 'seed', $3, $4, $5)`,
+      [req.user.id, 'Add Seed', rows[0].id, `Added seed: ${name} (${variety}), ₹${price_per_kg}/kg, stock: ${stock_kg}kg`, req.ip || req.connection?.remoteAddress]
     );
     res.status(201).json({ id: rows[0].id, message: 'Seed added' });
   } catch (err) {
@@ -292,8 +292,8 @@ router.patch('/seed-purchases/:id', ...isAdmin, validate(validationSchemas.updat
       }
       
       await db.query(
-        `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'seed_purchase', $3, $4)`,
-        [req.user.id, status === 'approved' ? 'Approve Seed Purchase' : 'Reject Seed Purchase', req.params.id, `Manager ${status} the warehouse payment of ₹${p.total_amount}`]
+        `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES ($1, $2, 'seed_purchase', $3, $4, $5)`,
+        [req.user.id, status === 'approved' ? 'Approve Seed Purchase' : 'Reject Seed Purchase', req.params.id, `Manager ${status} the warehouse payment of ₹${p.total_amount}`, req.ip || req.connection?.remoteAddress]
       );
 
       // Mark notification as read globally
@@ -326,8 +326,8 @@ router.patch('/seeds/:id', ...isAdmin, validate(validationSchemas.updateSeed), s
       [name, variety, updatedPrice, stock_kg, description, is_active, req.params.id]
     );
     await db.query(
-      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'seed', $3, $4)`,
-      [req.user.id, 'Update Seed', req.params.id, `Updated seed fields: ${[name && 'name', variety && 'variety', price_per_kg && 'price', stock_kg && 'stock', description && 'description', is_active !== undefined && 'active status'].filter(Boolean).join(', ')}`]
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES ($1, $2, 'seed', $3, $4, $5)`,
+      [req.user.id, 'Update Seed', req.params.id, `Updated seed fields: ${[name && 'name', variety && 'variety', price_per_kg && 'price', stock_kg && 'stock', description && 'description', is_active !== undefined && 'active status'].filter(Boolean).join(', ')}`, req.ip || req.connection?.remoteAddress]
     );
     res.json({ message: 'Seed updated' });
   } catch (err) {
@@ -510,8 +510,8 @@ router.post('/visits', ...isAdmin, validate(validationSchemas.createFarmVisit), 
       [farmer_id, 'Farm Visit Scheduled', `A visit has been scheduled for ${scheduled_date} (Month ${visit_month}).`]
     );
     await db.query(
-      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'farm_visit', $3, $4)`,
-      [req.user.id, 'Schedule Farm Visit', rows[0].id, `Scheduled visit for farmer ${farmer_id} on ${scheduled_date}`]
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES ($1, $2, 'farm_visit', $3, $4, $5)`,
+      [req.user.id, 'Schedule Farm Visit', rows[0].id, `Scheduled visit for farmer ${farmer_id} on ${scheduled_date}`, req.ip || req.connection?.remoteAddress]
     );
     res.status(201).json({ id: rows[0].id, message: 'Visit scheduled' });
   } catch (err) {
@@ -534,8 +534,8 @@ router.patch('/visits/:id', ...isAdmin, validate(validationSchemas.updateFarmVis
       [status, actual_date, verified_acres, report, scheduled_date, req.params.id]
     );
     await db.query(
-      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'farm_visit', $3, $4)`,
-      [req.user.id, status ? `Update Farm Visit (${status})` : 'Update Farm Visit', req.params.id, `Updated visit: ${[status && `status=${status}`, actual_date && `actual_date=${actual_date}`, verified_acres && `acres=${verified_acres}`, report && 'report added'].filter(Boolean).join(', ')}`]
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES ($1, $2, 'farm_visit', $3, $4, $5)`,
+      [req.user.id, status ? `Update Farm Visit (${status})` : 'Update Farm Visit', req.params.id, `Updated visit: ${[status && `status=${status}`, actual_date && `actual_date=${actual_date}`, verified_acres && `acres=${verified_acres}`, report && 'report added'].filter(Boolean).join(', ')}`, req.ip || req.connection?.remoteAddress]
     );
     res.json({ message: 'Visit updated' });
   } catch (err) {
@@ -598,8 +598,8 @@ router.post('/market-rates', ...isAdmin, validate(validationSchemas.setMarketRat
       [crop_type, grade, price_per_kg, effective_date || new Date().toISOString().split('T')[0], req.user.id]
     );
     await db.query(
-      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'market_rate', $3, $4)`,
-      [req.user.id, 'Set Market Rate', rows[0].id, `Set rate for ${crop_type} Grade ${grade}: ₹${price_per_kg}/kg`]
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES ($1, $2, 'market_rate', $3, $4, $5)`,
+      [req.user.id, 'Set Market Rate', rows[0].id, `Set rate for ${crop_type} Grade ${grade}: ₹${price_per_kg}/kg`, req.ip || req.connection?.remoteAddress]
     );
     res.status(201).json({ id: rows[0].id, message: 'Rate set' });
   } catch (err) {
@@ -638,8 +638,8 @@ router.patch('/transactions/:id/pay', ...isAdmin, validate(validationSchemas.pro
        `A payment of ₹${parseFloat(tx.amount).toFixed(2)} for ${tx.description} has been processed.`]
     );
     await db.query(
-      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'transaction', $3, $4)`,
-      [req.user.id, 'Process Payment', tx.id, `Paid ₹${parseFloat(tx.amount).toFixed(2)} for ${tx.description}`]
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES ($1, $2, 'transaction', $3, $4, $5)`,
+      [req.user.id, 'Process Payment', tx.id, `Paid ₹${parseFloat(tx.amount).toFixed(2)} for ${tx.description}`, req.ip || req.connection?.remoteAddress]
     );
     res.json({ message: 'Transaction paid successfully' });
   } catch (err) {
@@ -707,8 +707,8 @@ router.patch('/booking-slots/:id', ...isAdmin, async (req, res) => {
        status === 'confirmed' ? 'success' : 'warning']
     );
     await db.query(
-      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'booking_slot', $3, $4)`,
-      [req.user.id, status === 'confirmed' ? 'Confirm Slot' : 'Reject Slot', req.params.id, `Manager ${status} booking slot for ${slot.quantity_kg}kg of ${slot.grain_type}`]
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES ($1, $2, 'booking_slot', $3, $4, $5)`,
+      [req.user.id, status === 'confirmed' ? 'Confirm Slot' : 'Reject Slot', req.params.id, `Manager ${status} booking slot for ${slot.quantity_kg}kg of ${slot.grain_type}`, req.ip || req.connection?.remoteAddress]
     );
 
     // Mark notification as read globally
@@ -771,8 +771,8 @@ router.patch('/grain-sales/:id', ...isAdmin, async (req, res) => {
        status === 'approved' ? 'success' : 'error']
     );
     await db.query(
-      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'grain_sale', $3, $4)`,
-      [req.user.id, status === 'approved' ? 'Approve Grain Sale' : 'Reject Grain Sale', req.params.id, `Manager ${status} grain sale of ${sale.grain_type}. Amount: ₹${total.toFixed(2)}`]
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES ($1, $2, 'grain_sale', $3, $4, $5)`,
+      [req.user.id, status === 'approved' ? 'Approve Grain Sale' : 'Reject Grain Sale', req.params.id, `Manager ${status} grain sale of ${sale.grain_type}. Amount: ₹${total.toFixed(2)}`, req.ip || req.connection?.remoteAddress]
     );
     res.json({ message: `Sale ${status}` });
   } catch (err) {
@@ -854,8 +854,8 @@ router.post('/managers', authMiddleware, requireRole('super_admin'), validate(va
       [userId, department || 'Agriculture']
     );
     await db.query(
-      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'manager', $3, $4)`,
-      [req.user.id, 'Create Manager', userId, `Created manager: ${name} (${phone}), dept: ${department || 'Agriculture'}`]
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES ($1, $2, 'manager', $3, $4, $5)`,
+      [req.user.id, 'Create Manager', userId, `Created manager: ${name} (${phone}), dept: ${department || 'Agriculture'}`, req.ip || req.connection?.remoteAddress]
     );
     res.status(201).json({ id: userId, message: 'Manager created' });
   } catch (err) {
@@ -869,8 +869,8 @@ router.patch('/managers/:id', authMiddleware, requireRole('super_admin'), valida
   try {
     await db.query("UPDATE users SET status = $1 WHERE id = $2 AND role = 'manager'", [status, req.params.id]);
     await db.query(
-      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES ($1, $2, 'manager', $3, $4)`,
-      [req.user.id, status === 'active' ? 'Activate Manager' : 'Deactivate Manager', req.params.id, `Manager status changed to ${status}`]
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES ($1, $2, 'manager', $3, $4, $5)`,
+      [req.user.id, status === 'active' ? 'Activate Manager' : 'Deactivate Manager', req.params.id, `Manager status changed to ${status}`, req.ip || req.connection?.remoteAddress]
     );
     res.json({ message: 'Manager updated' });
   } catch (err) {

@@ -89,8 +89,8 @@ router.post('/login', validate(validationSchemas.login), sanitizeInput, async (r
 
     // Log audit
     await db.query(
-      `INSERT INTO audit_logs (user_id, action, details) VALUES ($1, 'LOGIN', $2)`,
-      [user.id, `Role: ${user.role}`]
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES ($1, 'LOGIN', 'user', $1, $2, $3)`,
+      [user.id, `Role: ${user.role}`, req.ip || req.connection?.remoteAddress]
     );
 
     let profile = null;
@@ -195,8 +195,8 @@ router.patch('/update-profile', authMiddleware, requireRole('manager', 'super_ad
     // Audit log — use the same minimal columns as the rest of auth.js to avoid schema mismatches
     try {
       await db.query(
-        `INSERT INTO audit_logs (user_id, action, details) VALUES ($1, 'PROFILE_UPDATE', $2)`,
-        [userId, changeSummary]
+        `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES ($1, 'PROFILE_UPDATE', 'user', $1, $2, $3)`,
+        [userId, changeSummary, req.ip || req.connection?.remoteAddress]
       );
     } catch (auditErr) {
       // Non-fatal — don't fail the whole request if audit logging errors
