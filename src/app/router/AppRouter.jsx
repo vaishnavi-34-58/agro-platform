@@ -93,6 +93,21 @@ export default function AppRouter() {
         <Route path="farmers" element={<AllFarmers />} />
       </Route>
 
+      {/* Operational portal for super_admin — distinct URL from /manager/dashboard */}
+      <Route path="/admin/dashboard/operational" element={<ProtectedRoute allowedRoles={['super_admin']}><AdminLayout /></ProtectedRoute>}>
+        <Route index element={<AdminDashboard />} />
+        <Route path="farmers" element={<FarmersDirectory />} />
+        <Route path="seeds" element={<SeedsInventory />} />
+        <Route path="warehouse" element={<WarehouseManagement />} />
+        <Route path="reports" element={<AdminReports />} />
+        <Route path="booking-slots" element={<AdminBookingSlots />} />
+        <Route path="visits" element={<FarmVisits />} />
+        <Route path="market-rates" element={<MarketRates />} />
+        <Route path="grain-sales" element={<GrainSalesAdmin />} />
+        <Route path="event-logs" element={<EventLogs />} />
+        <Route path="profile" element={<ManagerProfile />} />
+      </Route>
+
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

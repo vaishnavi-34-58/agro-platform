@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -25,7 +25,10 @@ export default function AdminLayout() {
   const [showLang, setShowLang] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
 
-  const basePath = '/manager/dashboard';
+  const location = useLocation();
+  const basePath = location.pathname.startsWith('/admin/dashboard/operational')
+    ? '/admin/dashboard/operational'
+    : '/manager/dashboard';
   const navItems = [
     { to: `${basePath}`, icon: <LayoutDashboard size={18} />, label: t('dashboard'), end: true, roles: ['manager', 'super_admin'] },
     { to: `${basePath}/farmers`, icon: <Users size={18} />, label: t('farmers'), roles: ['manager', 'super_admin'] },
