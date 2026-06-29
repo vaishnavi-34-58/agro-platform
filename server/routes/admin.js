@@ -739,15 +739,16 @@ router.get('/grain-sales', ...isAdmin, async (req, res) => {
 
 // PATCH /api/admin/grain-sales/:id
 router.patch('/grain-sales/:id', ...isAdmin, async (req, res) => {
-  const { status, price_per_kg } = req.body;
+  const { status, final_amount } = req.body;
   try {
     const { rows } = await db.query('SELECT * FROM grain_sales WHERE id = $1', [req.params.id]);
     if (rows.length === 0) return res.status(404).json({ error: 'Sale not found' });
     const sale = rows[0];
 
     let total = parseFloat(sale.total_amount);
-    if (price_per_kg && status === 'approved') {
-      total = price_per_kg * parseFloat(sale.good_material_kg);
+    if (final_amount && status === 'approved') {
+      total = parseFloat(final_amount);
+      const price_per_kg = total / parseFloat(sale.good_material_kg);
       await db.query(
         'UPDATE grain_sales SET status = $1, price_per_kg = $2, total_amount = $3, updated_at = now() WHERE id = $4',
         [status, price_per_kg, total, req.params.id]

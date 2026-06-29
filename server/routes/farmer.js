@@ -385,7 +385,7 @@ router.get('/booking-slots', ...isFarmer, async (req, res) => {
 router.get('/transactions', ...isFarmer, async (req, res) => {
   try {
     const { rows } = await db.query(
-      'SELECT DISTINCT * FROM transactions WHERE farmer_id = $1 ORDER BY created_at DESC', [req.user.id]
+      'SELECT * FROM transactions WHERE farmer_id = $1 ORDER BY created_at DESC', [req.user.id]
     );
     res.json(rows);
   } catch (err) {
