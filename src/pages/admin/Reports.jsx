@@ -2,14 +2,17 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../services/api/axios';
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { Download, Calendar, ArrowRight } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 
 const COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
 
 export default function Reports() {
   const { t } = useTranslation();
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'super_admin';
 
   const { data, isLoading: loading } = useQuery({
     queryKey: ['admin-dashboard'], // Reuse dashboard cache since they fetch the same endpoint
@@ -131,6 +134,7 @@ export default function Reports() {
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-10 h-10 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" /></div>;
 
+  const monthlySales = [...(data?.monthlySales || [])].reverse().map(m => ({ month: m.month?.slice(0, 7) || '', Total: m.total || 0 }));
   const dummyCropData = [ { name: 'Rice', value: 45 }, { name: 'Wheat', value: 25 }, { name: 'Cotton', value: 15 }, { name: 'Maize', value: 10 }, { name: 'Other', value: 5 } ];
 
   return (
@@ -140,7 +144,22 @@ export default function Reports() {
         <button onClick={() => downloadReport('full_report')} className="btn-secondary flex items-center gap-2"><Download size={16} />{t("export_full_report")}</button>
       </div>
 
-      <div className="mb-6">
+      <div className={`grid grid-cols-1 ${isSuperAdmin ? 'lg:grid-cols-2' : ''} gap-6 mb-6`}>
+        {isSuperAdmin && (
+          <div className="section-card">
+            <h3 className="section-title">{t("revenue_by_month")}</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={monthlySales}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={v => `₹${v/1000}k`} />
+                <Tooltip formatter={v => [`₹${v.toLocaleString()}`, 'Revenue']} cursor={{ fill: '#f8fafc' }} />
+                <Bar dataKey="Total" fill="#16a34a" radius={[4, 4, 0, 0]} maxBarSize={50} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
         <div className="section-card">
           <h3 className="section-title">{t("active_crop_distribution")}</h3>
           <div className="flex items-center h-[300px]">
